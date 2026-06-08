@@ -1,0 +1,18 @@
+# env
+.env
+agent-service/.env
+
+# Python
+agent-service/.venv/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# IDEA
+.idea/
+*.iml
+
+# Java
+target/
+*.class
