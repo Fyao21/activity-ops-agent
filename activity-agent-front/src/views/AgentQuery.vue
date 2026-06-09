@@ -35,7 +35,7 @@
             <template #header>
               <span>生成 SQL</span>
             </template>
-            <pre class="code-block">{{ result.generatedSql }}</pre>
+            <pre class="code-block">{{ sqlText }}</pre>
           </el-card>
         </el-col>
 
@@ -44,7 +44,7 @@
             <template #header>
               <span>分析结论</span>
             </template>
-            <div class="answer-text">{{ result.answer }}</div>
+            <div class="answer-text">{{ result.answer || '暂无结果' }}</div>
           </el-card>
         </el-col>
       </el-row>
@@ -55,7 +55,7 @@
             <template #header>
               <span>查询结果</span>
             </template>
-            <el-table :data="result.queryResult || []" stripe>
+            <el-table :data="tableData" stripe>
               <el-table-column
                 v-for="column in tableColumns"
                 :key="column"
@@ -73,6 +73,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { queryAgent } from '../api/agent'
 
 const loading = ref(false)
@@ -86,14 +87,30 @@ const examples = [
   '查询奖励发放失败最多的活动'
 ]
 
+const sqlText = computed(() => {
+  if (!result.value) return ''
+  return result.value.generatedSql || result.value.generated_sql || '未返回 SQL'
+})
+
+const tableData = computed(() => {
+  if (!result.value) return []
+  return result.value.queryResult || result.value.query_result || []
+})
+
 const tableColumns = computed(() => {
-  const firstRow = result.value?.queryResult?.[0]
+  const firstRow = tableData.value[0]
   return firstRow ? Object.keys(firstRow) : []
 })
 
 async function handleQuery() {
-  if (!question.value.trim()) return
+  if (!question.value.trim()) {
+    ElMessage.warning('请输入查询问题')
+    return
+  }
+
   loading.value = true
+  result.value = null
+
   try {
     const res = await queryAgent({
       question: question.value,
@@ -102,6 +119,12 @@ async function handleQuery() {
     result.value = res.data
     const current = Number(localStorage.getItem('agentQueryCount') || 0)
     localStorage.setItem('agentQueryCount', String(current + 1))
+  } catch (error) {
+    if (error.code === 'ECONNABORTED' || String(error.message || '').includes('timeout')) {
+      ElMessage.error('Agent 查询超时，请稍后重试，或缩小问题范围')
+    } else {
+      ElMessage.error('Agent 查询失败，请检查后端和 Python 服务')
+    }
   } finally {
     loading.value = false
   }

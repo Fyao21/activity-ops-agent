@@ -1,7 +1,6 @@
 package com.example.activityagent.vo;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.List;
@@ -10,15 +9,12 @@ import java.util.Map;
 @Data
 public class AgentQueryResponse {
     private String question;
-    @JsonProperty("generated_sql")
-    @JsonAlias("generatedSql")
+    @JsonAlias("generated_sql")
     private String generatedSql;
-    @JsonProperty("query_result")
-    @JsonAlias("queryResult")
+    @JsonAlias("query_result")
     private List<Map<String, Object>> queryResult;
     private String answer;
     private Boolean success;
-    @JsonProperty("error_message")
-    @JsonAlias("errorMessage")
+    @JsonAlias("error_message")
     private String errorMessage;
 }
