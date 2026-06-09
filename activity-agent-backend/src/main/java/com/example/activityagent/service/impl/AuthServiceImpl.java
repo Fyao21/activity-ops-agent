@@ -48,6 +48,6 @@ public class AuthServiceImpl implements AuthService {
         cacheValue.put("username", user.getUsername());
         cacheValue.put("role", user.getRole());
         redisTemplate.opsForValue().set("login:token:" + token, cacheValue, Duration.ofHours(12));
-        return new LoginResponse(token);
+        return new LoginResponse(token, user.getId(), user.getUsername(), user.getRole());
     }
 }

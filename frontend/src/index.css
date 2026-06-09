@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+:root {
+  --ai-ink: #07111f;
+  --ai-muted: #53657d;
+  --ai-cyan: #0ea5c8;
+  --ai-blue: #2563eb;
+  --ai-glass: rgba(245, 251, 255, 0.58);
+  --ai-glass-strong: rgba(255, 255, 255, 0.74);
+  --color-cyan-50: #ecfeff;
+  --color-cyan-100: #cffafe;
+  --color-cyan-200: #a5f3fc;
+  --color-cyan-300: #67e8f9;
+  --color-cyan-400: #22d3ee;
+  --color-cyan-500: #06b6d4;
+  --color-cyan-600: #0891b2;
+  --color-cyan-700: #0e7490;
+  --color-cyan-800: #155e75;
+  --color-cyan-900: #164e63;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Global glass card & action utilities ===== */
+.liquid-native-card {
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background:
+    radial-gradient(circle at 24% 0%, rgba(255, 255, 255, 0.85), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(226, 246, 253, 0.34));
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(20px) saturate(165%);
+}
+
+.liquid-action {
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.liquid-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 42px rgba(8, 145, 178, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(14, 116, 144, 0.28);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(14, 116, 144, 0.45);
+}
+
+/* ===== AI chat mark icon (used by LoginPage, AIChatPage etc.) ===== */
+.ai-chat-mark {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 1.35rem;
+  color: #0369a1;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.98), transparent 42%),
+    linear-gradient(135deg, rgba(207, 250, 254, 0.88), rgba(255, 255, 255, 0.48));
+  box-shadow:
+    0 18px 44px rgba(8, 145, 178, 0.14),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+/* ===== Glass panel wrapper (for liquid-glass-react) ===== */
+.liquid-glass-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--liquid-radius, 32px);
+}
+
+.liquid-glass-panel {
+  width: 100%;
+}
+
+/* ===== Page background ===== */
+.yuu-page {
+  position: relative;
+  min-height: calc(100vh - 56px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 14% 16%, rgba(56, 189, 248, 0.24), transparent 29%),
+    radial-gradient(circle at 88% 14%, rgba(14, 165, 233, 0.15), transparent 30%),
+    radial-gradient(circle at 76% 86%, rgba(125, 211, 252, 0.18), transparent 32%),
+    linear-gradient(135deg, #f7fbff 0%, #ecf7fc 42%, #f9fbff 100%);
+}
+
+.yuu-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 42%, black, transparent 76%);
+  z-index: 0;
+}
+
+.yuu-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Navbar ===== */
+.lab-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(20px) saturate(155%);
+}
+
+.lab-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #07111f;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.lab-nav-link {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* ===== Table styles (for SQL results) ===== */
+.data-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.07);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(207, 250, 254, 0.6);
+  backdrop-filter: blur(14px) saturate(140%);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 700;
+  color: #0e4b62;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.3);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 0.65rem 1rem;
+  color: #1e293b;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  white-space: nowrap;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ===== Risk badge ===== */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.risk-safe { background: rgba(52, 211, 153, 0.15); color: #065f46; }
+.risk-low  { background: rgba(250, 204, 21, 0.18); color: #854d0e; }
+.risk-mid  { background: rgba(251, 146, 60, 0.18); color: #9a3412; }
+.risk-high { background: rgba(248, 113, 113, 0.2); color: #991b1b; }
+
+/* ===== SQL code block ===== */
+.sql-block {
+  overflow-x: auto;
+  border-radius: 0.85rem;
+  background: rgba(9, 22, 39, 0.88);
+  backdrop-filter: blur(16px) saturate(120%);
+  padding: 0.9rem 1.1rem;
+  color: #a5f3fc;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.sql-block .keyword { color: #67e8f9; }
+.sql-block .table-name { color: #fde68a; }
+.sql-block .string { color: #86efac; }
+.sql-block .number { color: #c4b5fd; }
+
+/* ===== Animations ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease both;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.6) 25%, rgba(241, 245, 249, 0.8) 50%, rgba(226, 232, 240, 0.6) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

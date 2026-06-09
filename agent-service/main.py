@@ -2,6 +2,7 @@ import logging
 from functools import lru_cache
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from agent import ActivitySQLAgent
 from db import get_engine
@@ -19,6 +20,14 @@ app = FastAPI(
     title="Activity Agent Service",
     version="1.0.0",
     description="FastAPI + LangChain Text-to-SQL service for activity analytics.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
