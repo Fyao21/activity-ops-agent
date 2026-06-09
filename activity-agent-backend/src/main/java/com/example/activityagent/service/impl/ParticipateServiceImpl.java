@@ -7,9 +7,12 @@ import com.example.activityagent.entity.Activity;
 import com.example.activityagent.entity.ActivityUserRecord;
 import com.example.activityagent.mapper.ActivityMapper;
 import com.example.activityagent.mapper.ActivityUserRecordMapper;
+import com.example.activityagent.mq.ActivityEventMessage;
+import com.example.activityagent.mq.RedisStreamPublisher;
 import com.example.activityagent.service.ParticipateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -19,13 +22,16 @@ public class ParticipateServiceImpl implements ParticipateService {
 
     private final ActivityMapper activityMapper;
     private final ActivityUserRecordMapper activityUserRecordMapper;
+    private final RedisStreamPublisher redisStreamPublisher;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ActivityUserRecord participate(ParticipateRequest request) {
         Activity activity = activityMapper.selectById(request.getActivityId());
         if (activity == null) {
             throw new BusinessException("活动不存在");
         }
+
         LocalDateTime now = LocalDateTime.now();
         if (activity.getStatus() == null || activity.getStatus() != 1
             || now.isBefore(activity.getStartTime()) || now.isAfter(activity.getEndTime())) {
@@ -47,6 +53,16 @@ public class ParticipateServiceImpl implements ParticipateService {
         record.setParticipateStatus(1);
         record.setParticipateTime(now);
         activityUserRecordMapper.insert(record);
+
+        // Publish an async event after the participate record is persisted.
+        ActivityEventMessage eventMessage = new ActivityEventMessage();
+        eventMessage.setEventType("PARTICIPATE");
+        eventMessage.setActivityId(record.getActivityId());
+        eventMessage.setUserId(record.getUserId());
+        eventMessage.setChannel(record.getChannel());
+        eventMessage.setEventTime(record.getParticipateTime());
+        redisStreamPublisher.publishActivityEvent(eventMessage);
+
         return record;
     }
 }

@@ -2,25 +2,25 @@
 
 ## 1. 项目说明
 
-`activity-agent-backend` 是活动运营数据分析系统的 SpringBoot 后端服务，负责：
+`activity-agent-backend` 是活动运营数据分析系统的 Spring Boot 后端服务，负责：
 
 - 用户登录
 - 活动管理
-- 用户参与记录
-- 奖励发放记录
+- 用户参与活动
+- 奖励发放
 - 活动统计查询
 - 调用 Python Agent 服务
-- 保存问答记录到 `agent_qa_record`
-
-当前实现范围以 P0 为主，不包含前端页面和复杂异步消费链路。
+- 保存问答记录
+- 通过 Redis Stream 异步处理参与事件和奖励事件
 
 ## 2. 技术栈
 
 - Java 17
-- SpringBoot 3
+- Spring Boot 3.3.2
 - MyBatis-Plus
 - MySQL
 - Redis
+- Redis Stream
 - RestTemplate
 - Maven
 
@@ -38,16 +38,47 @@ activity-agent-backend/
 │   ├── vo
 │   ├── config
 │   ├── common
-│   ├── mq
-│   └── client
+│   ├── client
+│   └── mq
 ├── src/main/resources
 │   └── application.yml
 ├── pom.xml
 └── README.md
 ```
 
-## 4. 已实现接口
+## 4. 当前配置
 
+配置文件：
+
+- [application.yml](E:\Project\activity-agent\activity-agent-backend\src\main\resources\application.yml)
+
+当前默认值：
+
+```yaml
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/activity_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: wt292292
+  data:
+    redis:
+      host: 192.168.100.128
+      port: 6379
+      password: 1234
+      database: 0
+
+agent:
+  python-url: http://localhost:8000/agent/query
+```
+
+## 5. 已实现接口
+
+- `GET /`
+- `GET /health`
 - `POST /auth/login`
 - `POST /activity/create`
 - `GET /activity/list`
@@ -58,66 +89,32 @@ activity-agent-backend/
 - `GET /statistics/activity`
 - `POST /agent/query`
 
-## 5. 配置说明
-
-配置文件位置：
-
-- [application.yml](E:\Project\activity-agent\activity-agent-backend\src\main\resources\application.yml)
-
-默认配置：
-
-```yaml
-server:
-  port: 8080
-
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/activity_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: wt292292
-  data:
-    redis:
-      host: localhost
-      port: 6379
-
-agent:
-  python-url: http://localhost:8000/agent/query
-```
-
 ## 6. 启动说明
 
-### 6.1 准备 MySQL
+### 6.1 初始化 MySQL
 
-确保本地 MySQL 已启动，然后在项目根目录执行：
+在项目根目录执行：
 
 ```powershell
 mysql -uroot -pwt292292 < sql/schema.sql
 mysql -uroot -pwt292292 < sql/init.sql
 ```
 
-如果你的 MySQL 账号密码不同，替换命令里的 `root` 和 `wt292292`。
+### 6.2 启动 Redis
 
-### 6.2 准备 Redis
-
-确保本地 Redis 已启动，默认地址：
+确保 Redis 可以通过当前配置访问：
 
 ```text
-localhost:6379
+host: 192.168.100.128
+port: 6379
+password: 1234
+database: 0
 ```
 
 ### 6.3 启动 Python Agent 服务
 
-后端依赖 Python Agent 接口 `http://localhost:8000/agent/query`。
-
-先进入 `agent-service`：
-
 ```powershell
 cd E:\Project\activity-agent\agent-service
-```
-
-确认 `.env` 已配置真实可用的模型密钥，然后启动：
-
-```powershell
 .\.venv\Scripts\Activate.ps1
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -128,49 +125,23 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 Invoke-RestMethod -Method Get -Uri "http://localhost:8000/health"
 ```
 
-### 6.4 启动 SpringBoot 后端
-
-进入后端目录：
+### 6.4 启动后端
 
 ```powershell
 cd E:\Project\activity-agent\activity-agent-backend
-```
-
-编译：
-
-```powershell
 mvn clean compile
-```
-
-启动：
-
-```powershell
 mvn spring-boot:run
 ```
 
-启动成功后访问：
+健康检查：
 
-- `http://localhost:8080`
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/health"
+```
 
-## 7. 自测顺序
+## 7. 接口自测示例
 
-建议按下面顺序验证：
-
-1. 登录
-2. 创建活动
-3. 查询活动列表
-4. 查询活动详情
-5. 更新活动
-6. 用户参与活动
-7. 发放奖励
-8. 查询活动统计
-9. 调用 Agent 查询
-
-## 8. 接口自测示例
-
-### 8.1 登录
-
-`curl`：
+### 7.1 登录
 
 ```bash
 curl -X POST "http://localhost:8080/auth/login" \
@@ -178,33 +149,7 @@ curl -X POST "http://localhost:8080/auth/login" \
   -d "{\"username\":\"admin\",\"password\":\"123456\"}"
 ```
 
-PowerShell：
-
-```powershell
-$body = @{
-  username = "admin"
-  password = "123456"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Method Post `
-  -Uri "http://localhost:8080/auth/login" `
-  -ContentType "application/json" `
-  -Body $body
-```
-
-期望返回：
-
-```json
-{
-  "code": 1,
-  "message": "success",
-  "data": {
-    "token": "xxx"
-  }
-}
-```
-
-### 8.2 创建活动
+### 7.2 创建活动
 
 ```bash
 curl -X POST "http://localhost:8080/activity/create" \
@@ -212,64 +157,29 @@ curl -X POST "http://localhost:8080/activity/create" \
   -d "{\"activityName\":\"618加码活动\",\"activityType\":\"NEW_USER\",\"startTime\":\"2026-06-01T00:00:00\",\"endTime\":\"2026-06-30T23:59:59\",\"status\":1,\"ruleDesc\":\"新用户参与后发放优惠券\"}"
 ```
 
-### 8.3 查询活动列表
-
-```bash
-curl "http://localhost:8080/activity/list?page=1&pageSize=10"
-```
-
-### 8.4 查询活动详情
-
-示例查询活动 `1`：
-
-```bash
-curl "http://localhost:8080/activity/1"
-```
-
-### 8.5 更新活动
-
-```bash
-curl -X PUT "http://localhost:8080/activity/update" \
-  -H "Content-Type: application/json" \
-  -d "{\"id\":1,\"ruleDesc\":\"新用户参与后发放优惠券和积分\"}"
-```
-
-### 8.6 用户参与活动
-
-为了避免和初始化数据冲突，建议使用一个新的 `userId`：
+### 7.3 用户参与活动
 
 ```bash
 curl -X POST "http://localhost:8080/activity/participate" \
   -H "Content-Type: application/json" \
-  -d "{\"activityId\":1,\"userId\":90001,\"channel\":\"APP\"}"
+  -d "{\"activityId\":1,\"userId\":91001,\"channel\":\"APP\"}"
 ```
 
-说明：
-
-- 当前 P0 实现会校验活动状态和时间窗口
-- 同一用户重复参与同一活动会被拒绝
-
-### 8.7 发放奖励
-
-先参与，再发奖：
+### 7.4 发放奖励
 
 ```bash
 curl -X POST "http://localhost:8080/reward/send" \
   -H "Content-Type: application/json" \
-  -d "{\"activityId\":1,\"userId\":90001,\"rewardType\":\"COUPON\",\"rewardAmount\":10}"
+  -d "{\"activityId\":1,\"userId\":91001,\"rewardType\":\"COUPON\",\"rewardAmount\":10}"
 ```
 
-### 8.8 查询活动统计
+### 7.5 查询活动统计
 
 ```bash
 curl "http://localhost:8080/statistics/activity?activityId=1&startDate=2026-06-01&endDate=2026-06-30"
 ```
 
-### 8.9 调用 Agent 查询
-
-这个接口会调用 Python 服务，并把返回结果保存到 `agent_qa_record`。
-
-`curl`：
+### 7.6 调用 Agent 查询
 
 ```bash
 curl -X POST "http://localhost:8080/agent/query" \
@@ -277,80 +187,136 @@ curl -X POST "http://localhost:8080/agent/query" \
   -d "{\"question\":\"统计最近7天各活动的参与人数\",\"user_id\":1}"
 ```
 
-PowerShell：
+## 8. Redis Stream 异步流程
 
-```powershell
-$body = @{
-  question = "统计最近7天各活动的参与人数"
-  user_id = 1
-} | ConvertTo-Json
+### 8.1 Stream
 
-Invoke-RestMethod -Method Post `
-  -Uri "http://localhost:8080/agent/query" `
-  -ContentType "application/json" `
-  -Body $body
+- 参与事件：`stream:activity:event`
+- 奖励事件：`stream:reward:event`
+
+### 8.2 消费者组
+
+- 参与统计组：`group:activity:stat`
+- 奖励发放组：`group:reward:send`
+
+### 8.3 参与事件消费逻辑
+
+- 监听 `stream:activity:event`
+- 收到消息后，按“活动 + 日期”重算 `participant_count`
+- 成功后 `ack`
+- 失败只记日志，不 `ack`
+
+### 8.4 奖励事件消费逻辑
+
+- 监听 `stream:reward:event`
+- 收到消息后，把 `reward_record.send_status` 从 `0` 更新为 `1`
+- 更新 `reward_record.send_time`
+- 按“活动 + 日期”重算 `reward_count`
+- 按“活动 + 日期”重算 `reward_success_count`
+- 成功后 `ack`
+- 失败只记日志，不 `ack`
+
+## 9. Redis Stream 联调自测
+
+### 9.1 查看 stream 内容
+
+```bash
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XRANGE stream:activity:event - +
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XRANGE stream:reward:event - +
 ```
 
-如果你更希望后端请求字段统一使用驼峰，也可以这样发，当前后端已兼容：
+### 9.2 查看消费者组
 
-```json
-{
-  "question": "统计最近7天各活动的参与人数",
-  "userId": 1
-}
+```bash
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XINFO GROUPS stream:activity:event
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XINFO GROUPS stream:reward:event
 ```
 
-期望返回结构：
+### 9.3 查看 pending 消息
 
-```json
-{
-  "code": 1,
-  "message": "success",
-  "data": {
-    "question": "统计最近7天各活动的参与人数",
-    "generatedSql": "SELECT ...",
-    "queryResult": [],
-    "answer": "最近7天...",
-    "success": true,
-    "errorMessage": null
-  }
-}
+```bash
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XPENDING stream:activity:event group:activity:stat
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XPENDING stream:reward:event group:reward:send
 ```
 
-## 9. 推荐验证的问题
+### 9.4 完整验证步骤
 
-完成初始化 SQL 后，建议优先验证以下问题：
+步骤 1：发送参与请求
 
-```text
-统计最近7天各活动的参与人数
-查询双十一拉新活动的奖励发放成功率
-对比 APP 和 H5 渠道参与人数
-查询奖励发放失败最多的活动
+```bash
+curl -X POST "http://localhost:8080/activity/participate" \
+  -H "Content-Type: application/json" \
+  -d "{\"activityId\":1,\"userId\":91002,\"channel\":\"APP\"}"
 ```
 
-## 10. 常见问题
+步骤 2：查看参与 stream
 
-### 10.1 `/agent/query` 调用失败
+```bash
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XRANGE stream:activity:event - +
+```
+
+步骤 3：查看统计表
+
+```sql
+SELECT *
+FROM activity_statistics
+WHERE activity_id = 1
+ORDER BY stat_date DESC;
+```
+
+步骤 4：发送奖励请求
+
+```bash
+curl -X POST "http://localhost:8080/reward/send" \
+  -H "Content-Type: application/json" \
+  -d "{\"activityId\":1,\"userId\":91002,\"rewardType\":\"COUPON\",\"rewardAmount\":10}"
+```
+
+步骤 5：查看奖励记录状态
+
+```sql
+SELECT id, activity_id, user_id, send_status, send_time
+FROM reward_record
+WHERE user_id = 91002
+ORDER BY id DESC;
+```
+
+步骤 6：查看奖励 stream 和 pending
+
+```bash
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XRANGE stream:reward:event - +
+redis-cli -h 192.168.100.128 -p 6379 -a 1234 XPENDING stream:reward:event group:reward:send
+```
+
+## 10. 重要说明
+
+- `POST /reward/send` 现在会先写一条 `send_status = 0` 的记录，再由 Redis Stream 消费者异步更新为成功
+- 统计更新不是简单 `+1`，而是按天重算，避免消息重试导致重复累计
+- 消费失败不会 `ack`，消息会留在 pending list 中，方便后续重试
+
+## 11. 常见问题
+
+### 11.1 `/agent/query` 调用失败
 
 优先检查：
 
 1. Python Agent 是否已启动
 2. `application.yml` 中的 `agent.python-url` 是否可访问
-3. `agent-service/.env` 中的模型配置是否正确
+3. `agent-service/.env` 的模型配置是否正确
 
-### 10.2 登录成功但后续接口未校验 token
+### 11.2 Redis Stream 消费者没有工作
 
-当前是 P0 实现，只完成了登录和 Redis token 写入，还没有加统一鉴权拦截器。
+优先检查：
 
-### 10.3 参与活动失败
+1. Redis 地址和密码是否正确
+2. `XINFO GROUPS` 是否能看到消费者组
+3. 启动日志里是否有 `Redis Stream consumers started`
+
+### 11.3 参与活动失败
 
 优先检查：
 
 1. 活动是否存在
 2. 活动 `status` 是否为 `1`
-3. 当前时间是否在活动开始和结束时间之间
-4. `userId` 是否已经参与过该活动
-
-### 10.4 奖励发放失败
-
-当前 P0 实现要求用户必须先存在成功的参与记录，否则会直接拒绝发奖。
+3. 当前时间是否在活动时间范围内
+4. 用户是否已经参与过该活动
