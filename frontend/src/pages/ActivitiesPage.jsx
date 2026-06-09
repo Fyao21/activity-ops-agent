@@ -76,17 +76,19 @@ export default function ActivitiesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const pageSize = 12;
 
   const fetchActivities = useCallback(async (p) => {
     setLoading(true);
+    setError("");
     try {
       const res = await listActivities(p, pageSize);
       setActivities(res.data?.records || []);
       setTotal(res.data?.total || 0);
     } catch (err) {
-      console.error("Failed to fetch activities:", err);
+      setError(err.message || "加载活动列表失败");
     } finally {
       setLoading(false);
     }
@@ -122,6 +124,12 @@ export default function ActivitiesPage() {
             创建活动
           </button>
         </div>
+
+        {error && (
+          <div className="mb-4 rounded-xl bg-red-50/80 backdrop-blur border border-red-200 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         {/* Search */}
         <div className="mb-6 animate-fade-in-up">

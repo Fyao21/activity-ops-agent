@@ -7,6 +7,7 @@ import { ROUTES } from "../shared/routes";
 
 const AIChatPage = lazy(() => import("../pages/AIChatPage.jsx"));
 const ActivitiesPage = lazy(() => import("../pages/ActivitiesPage.jsx"));
+const ActivityDetailPage = lazy(() => import("../pages/ActivityDetailPage.jsx"));
 const HomePage = lazy(() => import("../pages/HomePage.jsx"));
 const LoginPage = lazy(() => import("../pages/LoginPage.jsx"));
 const StatisticsPage = lazy(() => import("../pages/StatisticsPage.jsx"));
@@ -32,7 +33,7 @@ export const router = createBrowserRouter([
       { path: ROUTES.LOGIN, element: withSuspense(<LoginPage />) },
       { path: ROUTES.AI_CHAT, element: withSuspense(<AIChatPage />) },
       { path: ROUTES.ACTIVITIES, element: withSuspense(<ActivitiesPage />) },
-      { path: ROUTES.ACTIVITY_DETAIL, element: withSuspense(<ActivitiesPage />) },
+      { path: ROUTES.ACTIVITY_DETAIL, element: withSuspense(<ActivityDetailPage />) },
       { path: ROUTES.STATISTICS, element: withSuspense(<StatisticsPage />) },
       { path: "*", element: <NotFound /> },
     ],

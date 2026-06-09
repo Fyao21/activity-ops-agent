@@ -65,12 +65,13 @@ export default function AIChatPage() {
   const messagesEndRef = useRef(null);
   const typewriterCancelRef = useRef(null);
   const inputRef = useRef("");
+  const busyRef = useRef(false);
 
   // Keep inputRef in sync so handleSend can read it without depending on input state
   inputRef.current = input;
+  busyRef.current = isLoading || isTypewriting;
 
   const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation]);
-  const busy = isLoading || isTypewriting;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -108,7 +109,7 @@ export default function AIChatPage() {
 
   const handleSend = useCallback(async () => {
     const text = inputRef.current.trim();
-    if (!text || busy) return;
+    if (!text || busyRef.current) return;
 
     setInput("");
     setStatusText("AI Agent 正在分析你的问题...");
@@ -133,7 +134,7 @@ export default function AIChatPage() {
       const result = res.data;
       const answer = result?.answer || "查询完成，但未返回文字结果。";
       const sql = result?.generated_sql || "";
-      const data = result?.query_result || [];
+      const queryData = result?.query_result || [];
       const riskLevel = result?.risk_level ?? 0;
       const riskReason = result?.risk_reason || "";
 
@@ -146,7 +147,7 @@ export default function AIChatPage() {
         text: answer,
         streaming: false,
         sql,
-        data,
+        data: queryData,
         riskLevel,
         riskReason,
       };
@@ -185,7 +186,7 @@ export default function AIChatPage() {
       setIsLoading(false);
       setStatusText("");
     }
-  }, [addMessage, appendAssistant, busy, updateLastMessage, user]);
+  }, [addMessage, appendAssistant, updateLastMessage, user]);
 
   const handleQuickPrompt = useCallback((prompt) => {
     setInput(prompt);
@@ -322,7 +323,7 @@ export default function AIChatPage() {
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={busy || !input.trim()}
+                disabled={isLoading || isTypewriting || !input.trim()}
                 className="ai-send-button"
                 aria-label="发送查询"
               >

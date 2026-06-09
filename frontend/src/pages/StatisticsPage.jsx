@@ -59,10 +59,11 @@ export default function StatisticsPage() {
     fetchStats();
   }, [fetchStats]);
 
-  // Calculate aggregate values from stats array (use ?? since 0 is a valid count)
+  // Calculate aggregate values (use ?? since 0 is a valid count)
   const totalParticipants = stats.reduce((sum, s) => sum + (s.participantCount ?? 0), 0);
   const totalRewards = stats.reduce((sum, s) => sum + (s.rewardCount ?? 0), 0);
   const totalRewardSuccess = stats.reduce((sum, s) => sum + (s.rewardSuccessCount ?? 0), 0);
+  const uniqueActivityCount = new Set(stats.map((s) => s.activityId).filter(Boolean)).size;
 
   return (
     <main className="yuu-page px-4 py-8 sm:px-8">
@@ -87,7 +88,7 @@ export default function StatisticsPage() {
           <StatCard
             icon={Activity}
             title="活动总数"
-            value={stats.length}
+            value={uniqueActivityCount}
             subtitle="当前统计范围"
             color="text-cyan-600"
             bg="bg-cyan-50/80"

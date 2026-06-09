@@ -23,7 +23,13 @@ async function request(url, options = {}) {
     throw new Error("登录已过期，请重新登录");
   }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    // Response body is not JSON (e.g. proxy HTML error page)
+    data = {};
+  }
 
   // Check both HTTP-level and business-level errors (code != 0 means business error)
   if (!res.ok || (data.code !== undefined && data.code !== 0)) {
