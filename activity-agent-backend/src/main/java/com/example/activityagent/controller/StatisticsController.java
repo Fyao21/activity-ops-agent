@@ -1,5 +1,6 @@
 package com.example.activityagent.controller;
 
+import com.example.activityagent.common.RequireRole;
 import com.example.activityagent.common.Result;
 import com.example.activityagent.dto.StatisticsQueryRequest;
 import com.example.activityagent.entity.ActivityStatistics;
@@ -20,6 +21,7 @@ public class StatisticsController {
     private final StatisticsService statisticsService;
 
     @GetMapping("/activity")
+    @RequireRole({"ADMIN", "OPERATOR"})
     public Result<List<ActivityStatistics>> query(@ModelAttribute StatisticsQueryRequest request) {
         return Result.success(statisticsService.query(request));
     }

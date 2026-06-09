@@ -11,13 +11,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessages;
+import org.springframework.data.redis.connection.stream.PendingMessagesSummary;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.Subscription;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 
+import java.net.InetAddress;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +30,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
 @Configuration
+@EnableScheduling
 @RequiredArgsConstructor
 public class RedisStreamConfig {
 
@@ -38,13 +44,17 @@ public class RedisStreamConfig {
 
     @PostConstruct
     public void init() {
+        // Build instance-specific consumer names for observability
+        String instanceId = resolveInstanceId();
+        RedisStreamKeys.ACTIVITY_STAT_CONSUMER = "consumer-activity-stat-" + instanceId;
+        RedisStreamKeys.REWARD_SEND_CONSUMER = "consumer-reward-send-" + instanceId;
+        log.info("Redis Stream consumer instance: {}", instanceId);
+
         StreamMessageListenerContainer.StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> options =
             StreamMessageListenerContainer.StreamMessageListenerContainerOptions.builder()
                 .pollTimeout(Duration.ofSeconds(1))
                 .build();
 
-        // Create and manage the Redis Stream container inside this config class
-        // to avoid bean initialization order issues and circular references.
         listenerContainer = StreamMessageListenerContainer.create(redisConnectionFactory, options);
 
         ensureGroup(RedisStreamKeys.ACTIVITY_EVENT_STREAM, RedisStreamKeys.ACTIVITY_STAT_GROUP);
@@ -64,6 +74,49 @@ public class RedisStreamConfig {
 
         listenerContainer.start();
         log.info("Redis Stream consumers started");
+    }
+
+    /**
+     * Periodically reclaim pending messages that have been idle for too long.
+     * Runs every 60 seconds to avoid overwhelming the system.
+     */
+    @Scheduled(fixedDelay = 60_000)
+    public void reclaimPendingMessages() {
+        reclaimPending(RedisStreamKeys.ACTIVITY_EVENT_STREAM, RedisStreamKeys.ACTIVITY_STAT_GROUP);
+        reclaimPending(RedisStreamKeys.REWARD_EVENT_STREAM, RedisStreamKeys.REWARD_SEND_GROUP);
+    }
+
+    private void reclaimPending(String streamKey, String groupName) {
+        String consumerName = streamKey.equals(RedisStreamKeys.REWARD_EVENT_STREAM)
+            ? RedisStreamKeys.REWARD_SEND_CONSUMER
+            : RedisStreamKeys.ACTIVITY_STAT_CONSUMER;
+        try {
+            PendingMessagesSummary summary = stringRedisTemplate.opsForStream()
+                .pending(streamKey, groupName);
+            if (summary == null || summary.getTotalPendingMessages() == 0) {
+                return;
+            }
+            long pendingCount = summary.getTotalPendingMessages();
+            log.info("Pending messages in {}/{}: {}", streamKey, groupName, pendingCount);
+            // Cap to avoid fetching millions of pending messages at once
+            long fetchCount = Math.min(pendingCount, 100);
+            PendingMessages pending = stringRedisTemplate.opsForStream()
+                .pending(streamKey, Consumer.from(groupName, "*"), null, fetchCount);
+            pending.forEach(msg -> {
+                if (msg.getElapsedTimeSinceLastDelivery() != null
+                    && msg.getElapsedTimeSinceLastDelivery().compareTo(Duration.ofMinutes(2)) > 0) {
+                    stringRedisTemplate.opsForStream().claim(
+                        streamKey, groupName,
+                        consumerName,
+                        Duration.ofMinutes(1),
+                        msg.getIdAsString()
+                    );
+                    log.info("Claimed idle pending message: {}/{} msg={}", streamKey, groupName, msg.getIdAsString());
+                }
+            });
+        } catch (Exception ex) {
+            log.warn("Failed to reclaim pending messages for {}/{}: {}", streamKey, groupName, ex.getMessage());
+        }
     }
 
     @PreDestroy
@@ -89,6 +142,15 @@ public class RedisStreamConfig {
                 return;
             }
             throw ex;
+        }
+    }
+
+    private String resolveInstanceId() {
+        try {
+            String host = InetAddress.getLocalHost().getHostName().replaceAll("[^a-zA-Z0-9]", "-");
+            return host + "-" + System.getProperty("server.port", "8080");
+        } catch (Exception e) {
+            return "node-" + System.currentTimeMillis() % 10000;
         }
     }
 

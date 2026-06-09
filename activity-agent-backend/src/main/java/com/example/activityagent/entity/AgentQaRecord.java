@@ -19,5 +19,7 @@ public class AgentQaRecord {
     private String answer;
     private Integer success;
     private String errorMessage;
+    private Integer riskLevel;
+    private String riskReason;
     private LocalDateTime createTime;
 }

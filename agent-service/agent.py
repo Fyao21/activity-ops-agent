@@ -9,11 +9,18 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
 from db import ALLOWED_TABLES, execute_query, get_settings, get_sql_database
-from sql_guard import SQLGuardError, guard_sql, strip_sql_fence
+from sql_guard import SQLGuardError, guard_sql, risk_score, strip_sql_fence
 
 
 logger = logging.getLogger(__name__)
 
+
+# Tables exposed to the LLM for SQL generation. Deliberately excludes
+# agent_qa_record to prevent the model from querying historical Q&A or
+# exposing previously generated SQL and results.
+QUERYABLE_TABLES = [
+    t for t in ALLOWED_TABLES if t != "agent_qa_record"
+]
 
 SQL_PROMPT = PromptTemplate.from_template(
     """You are an activity operations data analysis SQL generator.
@@ -21,9 +28,10 @@ You must follow these rules:
 - Only generate one MySQL SELECT statement.
 - Do not generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, WITH, or multiple statements.
 - Never query sys_user.password or any password field.
+- Never use SELECT * — always list columns explicitly.
 - Only use these tables: {table_info}
 - If the user's question is unrelated to the activity operations database, return exactly REFUSE.
-- Prefer fields from activity, activity_user_record, reward_record, activity_statistics, and agent_qa_record.
+- Prefer fields from activity, activity_user_record, reward_record, and activity_statistics.
 - Return raw SQL only. Do not wrap it in markdown. Do not explain anything.
 
 Database dialect: {dialect}
@@ -67,15 +75,37 @@ class ActivitySQLAgent:
                 "answer": "该问题与活动运营数据分析无关，当前服务拒绝回答。",
                 "success": False,
                 "error_message": "Question is not related to the activity operations database.",
+                "risk_level": 0,
+                "risk_reason": "N/A (refused)",
             }
 
+        risk_level = 0
+        risk_reason = ""
         try:
             guarded_sql = guard_sql(sql, default_limit=100)
-            logger.info("Generated SQL: %s", guarded_sql)
+            risk_level, risk_reason = risk_score(guarded_sql)
+            logger.info(
+                "Generated SQL [risk=%d]: %s",
+                risk_level,
+                guarded_sql,
+            )
             query_result = execute_query(guarded_sql)
+        except SQLGuardError:
+            raise
         except Exception as exc:
             logger.warning("SQL execution failed, retrying once: %s", exc)
             guarded_sql, query_result = self._repair_and_retry(question, sql, exc)
+            risk_level, risk_reason = risk_score(guarded_sql)
+
+        # Truncate large result sets to avoid ballooning storage
+        MAX_RESULT_ROWS = 200
+        if len(query_result) > MAX_RESULT_ROWS:
+            logger.warning(
+                "Query returned %d rows, truncating to %d",
+                len(query_result),
+                MAX_RESULT_ROWS,
+            )
+            query_result = query_result[:MAX_RESULT_ROWS]
 
         answer = self._summarize(question, guarded_sql, query_result)
         return {
@@ -84,13 +114,15 @@ class ActivitySQLAgent:
             "answer": answer,
             "success": True,
             "error_message": None,
+            "risk_level": risk_level,
+            "risk_reason": risk_reason,
         }
 
     def _generate_sql(self, question: str) -> str:
         raw_sql = self.sql_chain.invoke(
             {
                 "question": question,
-                "table_names_to_use": ALLOWED_TABLES,
+                "table_names_to_use": QUERYABLE_TABLES,
             }
         )
         sql = strip_sql_fence(str(raw_sql)).strip()
@@ -107,14 +139,14 @@ class ActivitySQLAgent:
                 content=(
                     "You fix MySQL SELECT statements for an activity operations analytics database. "
                     "Return exactly one corrected SELECT statement. "
-                    "Do not use WITH. Do not access password fields. "
+                    "Do not use SELECT *. Do not use WITH. Do not access password fields. "
                     "Do not return markdown."
                 )
             ),
             HumanMessage(
                 content=(
                     f"Question: {question}\n"
-                    f"Allowed tables: {', '.join(ALLOWED_TABLES)}\n"
+                    f"Allowed tables: {', '.join(QUERYABLE_TABLES)}\n"
                     f"Original SQL: {original_sql}\n"
                     f"Execution error: {error}\n"
                     "Return corrected SQL only."

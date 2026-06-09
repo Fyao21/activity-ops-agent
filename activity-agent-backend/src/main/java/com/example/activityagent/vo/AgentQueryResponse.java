@@ -21,4 +21,12 @@ public class AgentQueryResponse {
     @JsonProperty("error_message")
     @JsonAlias("errorMessage")
     private String errorMessage;
+
+    @JsonProperty("risk_level")
+    @JsonAlias("riskLevel")
+    private Integer riskLevel;
+
+    @JsonProperty("risk_reason")
+    @JsonAlias("riskReason")
+    private String riskReason;
 }

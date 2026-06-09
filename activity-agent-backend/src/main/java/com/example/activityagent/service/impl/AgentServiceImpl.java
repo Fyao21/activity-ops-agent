@@ -2,6 +2,8 @@ package com.example.activityagent.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.example.activityagent.client.PythonAgentClient;
+import com.example.activityagent.common.BusinessException;
+import com.example.activityagent.common.ErrorCode;
 import com.example.activityagent.dto.AgentQueryRequest;
 import com.example.activityagent.entity.AgentQaRecord;
 import com.example.activityagent.mapper.AgentQaRecordMapper;
@@ -30,8 +32,9 @@ public class AgentServiceImpl implements AgentService {
         try {
             response = pythonAgentClient.query(request);
         } catch (Exception ex) {
-            saveRecord(request, null, null, null, false, ex.getMessage());
-            throw ex;
+            log.error("Python Agent call failed for user={}, question={}", request.getUserId(), request.getQuestion(), ex);
+            saveRecord(request, null, null, null, false, ex.getMessage(), 0, "");
+            throw new BusinessException(ErrorCode.AGENT_CALL_FAILED, ex.getMessage());
         }
 
         saveRecord(
@@ -40,7 +43,9 @@ public class AgentServiceImpl implements AgentService {
             toJson(response.getQueryResult()),
             response.getAnswer(),
             Boolean.TRUE.equals(response.getSuccess()),
-            response.getErrorMessage()
+            response.getErrorMessage(),
+            response.getRiskLevel() != null ? response.getRiskLevel() : 0,
+            response.getRiskReason() != null ? response.getRiskReason() : ""
         );
 
         if (StringUtils.isBlank(response.getQuestion())) {
@@ -58,7 +63,9 @@ public class AgentServiceImpl implements AgentService {
         String queryResult,
         String answer,
         boolean success,
-        String errorMessage
+        String errorMessage,
+        int riskLevel,
+        String riskReason
     ) {
         AgentQaRecord record = new AgentQaRecord();
         record.setUserId(request.getUserId());
@@ -68,10 +75,13 @@ public class AgentServiceImpl implements AgentService {
         record.setAnswer(answer);
         record.setSuccess(success ? 1 : 0);
         record.setErrorMessage(errorMessage);
+        record.setRiskLevel(riskLevel);
+        record.setRiskReason(riskReason);
         agentQaRecordMapper.insert(record);
     }
 
     private String toJson(Object data) {
+        if (data == null) return null;
         try {
             return objectMapper.writeValueAsString(data);
         } catch (JsonProcessingException ex) {

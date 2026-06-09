@@ -1,20 +1,27 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    max-http-form-post-size: 1MB
 
 spring:
   application:
     name: activity-agent-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/activity_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: wt292292
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:activity_agent}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 10000
   data:
     redis:
-      host: 192.168.100.128
-      port: 6379
-      password: 1234
-      database: 0
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
       timeout: 5s
   jackson:
     default-property-inclusion: non_null
@@ -29,6 +36,6 @@ mybatis-plus:
       id-type: auto
 
 agent:
-  python-url: http://localhost:8000/agent/query
+  python-url: ${AGENT_PYTHON_URL:http://localhost:8000}/agent/query
   connect-timeout-ms: 5000
   read-timeout-ms: 60000

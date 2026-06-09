@@ -1,5 +1,7 @@
 package com.example.activityagent.controller;
 
+import com.example.activityagent.common.PageResult;
+import com.example.activityagent.common.RequireRole;
 import com.example.activityagent.common.Result;
 import com.example.activityagent.dto.ActivityCreateRequest;
 import com.example.activityagent.dto.ActivityUpdateRequest;
@@ -16,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/activity")
 @RequiredArgsConstructor
@@ -26,12 +26,13 @@ public class ActivityController {
     private final ActivityService activityService;
 
     @PostMapping("/create")
+    @RequireRole({"ADMIN"})
     public Result<Activity> create(@Valid @RequestBody ActivityCreateRequest request) {
         return Result.success(activityService.create(request));
     }
 
     @GetMapping("/list")
-    public Result<List<Activity>> list(
+    public Result<PageResult<Activity>> list(
         @RequestParam(defaultValue = "1") int page,
         @RequestParam(defaultValue = "10") int pageSize
     ) {
@@ -44,6 +45,7 @@ public class ActivityController {
     }
 
     @PutMapping("/update")
+    @RequireRole({"ADMIN"})
     public Result<Activity> update(@Valid @RequestBody ActivityUpdateRequest request) {
         return Result.success(activityService.update(request));
     }

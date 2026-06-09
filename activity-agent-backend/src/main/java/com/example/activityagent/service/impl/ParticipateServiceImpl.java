@@ -2,6 +2,7 @@ package com.example.activityagent.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.activityagent.common.BusinessException;
+import com.example.activityagent.common.ErrorCode;
 import com.example.activityagent.dto.ParticipateRequest;
 import com.example.activityagent.entity.Activity;
 import com.example.activityagent.entity.ActivityUserRecord;
@@ -11,11 +12,14 @@ import com.example.activityagent.mq.ActivityEventMessage;
 import com.example.activityagent.mq.RedisStreamPublisher;
 import com.example.activityagent.service.ParticipateService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ParticipateServiceImpl implements ParticipateService {
@@ -24,26 +28,35 @@ public class ParticipateServiceImpl implements ParticipateService {
     private final ActivityUserRecordMapper activityUserRecordMapper;
     private final RedisStreamPublisher redisStreamPublisher;
 
+    /**
+     * Register a user's participation in an activity.
+     *
+     * Uses database UNIQUE constraint (activity_id, user_id) as the final
+     * concurrency guard. The code-level check-and-insert is a fast-path;
+     * DuplicateKeyException caught at the constraint layer provides the
+     * definitive safety net under concurrent requests.
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ActivityUserRecord participate(ParticipateRequest request) {
         Activity activity = activityMapper.selectById(request.getActivityId());
         if (activity == null) {
-            throw new BusinessException("活动不存在");
+            throw new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND);
         }
 
         LocalDateTime now = LocalDateTime.now();
         if (activity.getStatus() == null || activity.getStatus() != 1
             || now.isBefore(activity.getStartTime()) || now.isAfter(activity.getEndTime())) {
-            throw new BusinessException("活动当前不可参与");
+            throw new BusinessException(ErrorCode.ACTIVITY_NOT_ACTIVE);
         }
 
+        // Fast-path dedup: skip insert if already present (handles 99.9% of cases)
         ActivityUserRecord existed = activityUserRecordMapper.selectOne(new LambdaQueryWrapper<ActivityUserRecord>()
             .eq(ActivityUserRecord::getActivityId, request.getActivityId())
             .eq(ActivityUserRecord::getUserId, request.getUserId())
             .last("LIMIT 1"));
         if (existed != null) {
-            throw new BusinessException("用户已参与该活动");
+            throw new BusinessException(ErrorCode.ACTIVITY_ALREADY_JOINED);
         }
 
         ActivityUserRecord record = new ActivityUserRecord();
@@ -52,9 +65,15 @@ public class ParticipateServiceImpl implements ParticipateService {
         record.setChannel(request.getChannel());
         record.setParticipateStatus(1);
         record.setParticipateTime(now);
-        activityUserRecordMapper.insert(record);
+        try {
+            activityUserRecordMapper.insert(record);
+        } catch (DuplicateKeyException e) {
+            log.warn("Concurrent duplicate participation blocked by UNIQUE constraint: activityId={}, userId={}",
+                request.getActivityId(), request.getUserId());
+            throw new BusinessException(ErrorCode.ACTIVITY_ALREADY_JOINED);
+        }
 
-        // Publish an async event after the participate record is persisted.
+        // Publish async event for statistics recalculation
         ActivityEventMessage eventMessage = new ActivityEventMessage();
         eventMessage.setEventType("PARTICIPATE");
         eventMessage.setActivityId(record.getActivityId());

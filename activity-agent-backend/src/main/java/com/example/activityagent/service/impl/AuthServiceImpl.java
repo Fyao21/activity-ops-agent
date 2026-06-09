@@ -9,6 +9,7 @@ import com.example.activityagent.service.AuthService;
 import com.example.activityagent.vo.LoginResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -22,14 +23,22 @@ public class AuthServiceImpl implements AuthService {
 
     private final SysUserMapper sysUserMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    /**
+     * Authenticate user by username + password using BCrypt comparison.
+     * On success, create a session token stored in Redis with 12h TTL.
+     */
     @Override
     public LoginResponse login(LoginRequest request) {
         SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
             .eq(SysUser::getUsername, request.getUsername())
-            .eq(SysUser::getPassword, request.getPassword())
             .last("LIMIT 1"));
         if (user == null) {
+            throw new BusinessException("用户名或密码错误");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BusinessException("用户名或密码错误");
         }
 

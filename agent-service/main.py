@@ -4,8 +4,10 @@ from functools import lru_cache
 from fastapi import FastAPI
 
 from agent import ActivitySQLAgent
+from db import get_engine
 from schemas import AgentQueryRequest, AgentQueryResponse
 from sql_guard import SQLGuardError
+from sqlalchemy import text
 
 
 logging.basicConfig(
@@ -28,6 +30,22 @@ def get_agent() -> ActivitySQLAgent:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness() -> dict:
+    """Readiness probe: checks DB connectivity.
+    Does NOT leak internal error details — only returns ok/unreachable."""
+    checks = {}
+    try:
+        with get_engine().connect() as conn:
+            result = conn.execute(text("SELECT 1")).scalar()
+            checks["mysql"] = "ok" if result == 1 else "unreachable"
+    except Exception:
+        logging.exception("MySQL health check failed")
+        checks["mysql"] = "unreachable"
+    checks["status"] = "ready" if checks.get("mysql") == "ok" else "degraded"
+    return checks
 
 
 @app.post("/agent/query", response_model=AgentQueryResponse)

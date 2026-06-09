@@ -1,5 +1,6 @@
 package com.example.activityagent.controller;
 
+import com.example.activityagent.common.RequireRole;
 import com.example.activityagent.common.Result;
 import com.example.activityagent.dto.AgentQueryRequest;
 import com.example.activityagent.service.AgentService;
@@ -19,6 +20,7 @@ public class AgentController {
     private final AgentService agentService;
 
     @PostMapping("/query")
+    @RequireRole({"ADMIN", "OPERATOR"})
     public Result<AgentQueryResponse> query(@Valid @RequestBody AgentQueryRequest request) {
         return Result.success(agentService.query(request));
     }

@@ -13,12 +13,14 @@ from sqlalchemy.engine import Engine
 load_dotenv()
 
 
+# Tables the LLM may use for SQL generation.
+# agent_qa_record is NOT included — the Agent must not query its own
+# historical Q&A records (which contain generated_sql and query_result).
 ALLOWED_TABLES = [
     "activity",
     "activity_user_record",
     "reward_record",
     "activity_statistics",
-    "agent_qa_record",
 ]
 
 
@@ -69,6 +71,9 @@ def get_engine() -> Engine:
     return create_engine(
         settings.mysql_uri,
         pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        pool_recycle=3600,
         future=True,
     )
 

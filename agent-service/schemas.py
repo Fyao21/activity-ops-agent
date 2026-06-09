@@ -14,3 +14,5 @@ class AgentQueryResponse(BaseModel):
     answer: str = ""
     success: bool
     error_message: Optional[str] = None
+    risk_level: int = 0
+    risk_reason: str = ""

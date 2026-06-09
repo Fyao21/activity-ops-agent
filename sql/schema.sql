@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS activity_user_record (
     KEY idx_activity_time (activity_id, participate_time),
     KEY idx_user_activity (user_id, activity_id),
     KEY idx_channel_time (channel, participate_time),
+    UNIQUE KEY uk_activity_user (activity_id, user_id),
     CONSTRAINT fk_activity_user_record_activity FOREIGN KEY (activity_id) REFERENCES activity (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户参与活动记录表';
 
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS reward_record (
     KEY idx_activity_status (activity_id, send_status),
     KEY idx_user_activity (user_id, activity_id),
     KEY idx_send_time (send_time),
+    UNIQUE KEY uk_activity_user_reward (activity_id, user_id, reward_type),
     CONSTRAINT fk_reward_record_activity FOREIGN KEY (activity_id) REFERENCES activity (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='奖励发放记录表';
 
@@ -86,6 +88,8 @@ CREATE TABLE IF NOT EXISTS agent_qa_record (
     answer TEXT COMMENT '最终回答',
     success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功 1成功 0失败',
     error_message TEXT COMMENT '错误信息',
+    risk_level INT NOT NULL DEFAULT 0 COMMENT 'SQL风险等级 0-10',
+    risk_reason VARCHAR(255) DEFAULT '' COMMENT '风险描述',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY idx_user_time (user_id, create_time),
     CONSTRAINT fk_agent_qa_record_user FOREIGN KEY (user_id) REFERENCES sys_user (id)

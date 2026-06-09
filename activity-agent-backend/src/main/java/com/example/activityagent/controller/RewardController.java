@@ -1,5 +1,6 @@
 package com.example.activityagent.controller;
 
+import com.example.activityagent.common.RequireRole;
 import com.example.activityagent.common.Result;
 import com.example.activityagent.dto.RewardSendRequest;
 import com.example.activityagent.entity.RewardRecord;
@@ -19,6 +20,7 @@ public class RewardController {
     private final RewardService rewardService;
 
     @PostMapping("/send")
+    @RequireRole({"ADMIN", "OPERATOR"})
     public Result<RewardRecord> send(@Valid @RequestBody RewardSendRequest request) {
         return Result.success(rewardService.sendReward(request));
     }

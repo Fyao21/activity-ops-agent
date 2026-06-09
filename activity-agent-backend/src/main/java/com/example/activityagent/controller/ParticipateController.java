@@ -1,5 +1,6 @@
 package com.example.activityagent.controller;
 
+import com.example.activityagent.common.RequireRole;
 import com.example.activityagent.common.Result;
 import com.example.activityagent.dto.ParticipateRequest;
 import com.example.activityagent.entity.ActivityUserRecord;
@@ -19,6 +20,7 @@ public class ParticipateController {
     private final ParticipateService participateService;
 
     @PostMapping("/participate")
+    @RequireRole({"ADMIN", "OPERATOR"})
     public Result<ActivityUserRecord> participate(@Valid @RequestBody ParticipateRequest request) {
         return Result.success(participateService.participate(request));
     }

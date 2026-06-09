@@ -12,9 +12,10 @@ TRUNCATE TABLE sys_user;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- 演示密码均为 "123456"，以下为 BCrypt 哈希
 INSERT INTO sys_user (id, username, password, role, create_time, update_time) VALUES
-(1, 'admin', '123456', 'ADMIN', '2026-06-01 09:00:00', '2026-06-01 09:00:00'),
-(2, 'operator', '123456', 'OPERATOR', '2026-06-01 09:05:00', '2026-06-01 09:05:00');
+(1, 'admin', '$2b$12$l/bRgp3lnMYxKY7T7TR48.RCRawgK.zD1lTzVVOp4YZFG27RsUeCa', 'ADMIN', '2026-06-01 09:00:00', '2026-06-01 09:00:00'),
+(2, 'operator', '$2b$12$l/bRgp3lnMYxKY7T7TR48.RCRawgK.zD1lTzVVOp4YZFG27RsUeCa', 'OPERATOR', '2026-06-01 09:05:00', '2026-06-01 09:05:00');
 
 INSERT INTO activity (id, activity_name, activity_type, start_time, end_time, status, rule_desc, create_time, update_time) VALUES
 (1, '双十一拉新活动', 'NEW_USER', '2026-06-01 00:00:00', '2026-06-30 23:59:59', 1, '新用户参与后发放优惠券。', '2026-06-01 10:00:00', '2026-06-01 10:00:00'),
@@ -194,7 +195,7 @@ INSERT INTO activity_statistics (id, activity_id, stat_date, participant_count, 
 (14, 5, '2026-06-07', 3, 2, 2, 0.6667, 0.4000, '2026-06-07 23:59:00', '2026-06-07 23:59:00'),
 (15, 5, '2026-06-08', 3, 2, 1, 0.6667, 0.4200, '2026-06-08 23:59:00', '2026-06-08 23:59:00');
 
-INSERT INTO agent_qa_record (id, user_id, question, generated_sql, query_result, answer, success, error_message, create_time) VALUES
-(1, 1, '统计最近7天各活动的参与人数', 'SELECT a.activity_name, COUNT(*) AS participant_count FROM activity_user_record aur JOIN activity a ON aur.activity_id = a.id WHERE aur.participate_time >= ''2026-06-02 00:00:00'' GROUP BY a.activity_name;', '[{\"activity_name\":\"双十一拉新活动\",\"participant_count\":20}]', '最近7天内双十一拉新活动参与人数为 20，其余活动也有稳定参与。', 1, NULL, '2026-06-08 21:30:00'),
-(2, 2, '对比 APP 和 H5 渠道参与人数', 'SELECT channel, COUNT(*) AS participant_count FROM activity_user_record WHERE channel IN (''APP'',''H5'') GROUP BY channel;', '[{\"channel\":\"APP\",\"participant_count\":52},{\"channel\":\"H5\",\"participant_count\":31}]', 'APP 渠道参与人数明显高于 H5。', 1, NULL, '2026-06-08 21:35:00'),
-(3, 2, '查询奖励发放失败最多的活动', 'SELECT a.activity_name, COUNT(*) AS fail_count FROM reward_record rr JOIN activity a ON rr.activity_id = a.id WHERE rr.send_status = 2 GROUP BY a.activity_name ORDER BY fail_count DESC LIMIT 1;', '[{\"activity_name\":\"夏季满减活动\",\"fail_count\":5}]', '奖励发放失败最多的活动是夏季满减活动。', 1, NULL, '2026-06-08 21:40:00');
+INSERT INTO agent_qa_record (id, user_id, question, generated_sql, query_result, answer, success, error_message, risk_level, risk_reason, create_time) VALUES
+(1, 1, '统计最近7天各活动的参与人数', 'SELECT a.activity_name, COUNT(*) AS participant_count FROM activity_user_record aur JOIN activity a ON aur.activity_id = a.id WHERE aur.participate_time >= ''2026-06-02 00:00:00'' GROUP BY a.activity_name;', '[{\"activity_name\":\"双十一拉新活动\",\"participant_count\":20}]', '最近7天内双十一拉新活动参与人数为 20，其余活动也有稳定参与。', 1, NULL, 2, 'GROUP BY', '2026-06-08 21:30:00'),
+(2, 2, '对比 APP 和 H5 渠道参与人数', 'SELECT channel, COUNT(*) AS participant_count FROM activity_user_record WHERE channel IN (''APP'',''H5'') GROUP BY channel;', '[{\"channel\":\"APP\",\"participant_count\":52},{\"channel\":\"H5\",\"participant_count\":31}]', 'APP 渠道参与人数明显高于 H5。', 1, NULL, 1, 'GROUP BY', '2026-06-08 21:35:00'),
+(3, 2, '查询奖励发放失败最多的活动', 'SELECT a.activity_name, COUNT(*) AS fail_count FROM reward_record rr JOIN activity a ON rr.activity_id = a.id WHERE rr.send_status = 2 GROUP BY a.activity_name ORDER BY fail_count DESC LIMIT 1;', '[{\"activity_name\":\"夏季满减活动\",\"fail_count\":5}]', '奖励发放失败最多的活动是夏季满减活动。', 1, NULL, 2, 'GROUP BY; ORDER BY', '2026-06-08 21:40:00');
