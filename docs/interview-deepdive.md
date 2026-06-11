@@ -3,6 +3,7 @@
 这份文档主要整理面试官更容易深挖的问题，重点放在：
 
 - Redis / Redis Stream
+- RocketMQ 与消息队列迁移
 - SQL 安全
 - Java 调 Python
 - 异步一致性
@@ -99,6 +100,90 @@ A：
 3. 增加失败次数记录，超过阈值进入死信队列
 4. 增加消费监控，比如堆积消息数、消费失败率
 5. 把消费者并发和批量拉取参数做成可配置
+
+---
+
+## 1.1 RocketMQ 迁移相关追问
+
+### Q5A：既然已经用了 Redis Stream，为什么还要迁移到 RocketMQ？
+
+A：
+
+Redis Stream 适合中小型项目快速落地，我用它先验证了参与事件和奖励事件的异步链路。但随着项目继续完善，我希望补充更标准的 Topic、Tag、消费组、Broker 重试和死信队列能力，所以迁移到了 RocketMQ。
+
+迁移不是因为 Redis Stream 完全不可用，而是一次技术演进：
+
+- Redis Stream 负责快速验证方案
+- RocketMQ 作为当前默认消息队列
+- Redis Stream 代码继续保留，用于技术对比和回滚验证
+
+---
+
+### Q5B：RocketMQ 在项目里是怎么设计的？
+
+A：
+
+项目使用一个 Topic：
+
+```text
+agent-task-topic
+```
+
+通过两个 Tag 区分业务任务：
+
+```text
+PARTICIPATE
+REWARD
+```
+
+生产组是 `agent-task-producer-group`，消费组是
+`agent-task-consumer-group`。消费者使用
+`PARTICIPATE || REWARD` 过滤表达式订阅两类消息，再根据
+`eventType` 分发到不同处理逻辑。
+
+---
+
+### Q5C：RocketMQ 消费失败后怎么处理？
+
+A：
+
+RocketMQ Spring 消费者不需要像 Redis Stream 一样手动 ACK。
+`onMessage` 正常结束表示成功；如果业务处理抛出异常，Broker 会按照
+重试策略重新投递。超过最大重试次数后，消息会进入该消费组对应的
+死信队列。
+
+生产环境中我还会继续补充：
+
+1. 重试次数和延迟级别配置
+2. 消费失败告警
+3. 死信队列巡检
+4. 人工或自动补偿消费
+
+---
+
+### Q5D：迁移后如何保证重复消费不会造成数据错误？
+
+A：
+
+参与任务按“活动 + 日期”从源表重新统计，再覆盖写入统计表，所以重复
+投递只会得到相同结果。
+
+奖励任务使用 `reward_record.send_status` 作为幂等状态。记录已经离开
+初始状态后，重复消息不会再次执行状态流转，只会刷新派生统计。
+
+---
+
+### Q5E：为什么不直接删除 Redis Stream 代码？
+
+A：
+
+当前保留旧代码有三个目的：
+
+1. 展示从轻量方案迁移到专业消息队列的过程
+2. 便于比较 ACK、pending、Broker 重试和 DLQ 的差异
+3. 在联调阶段保留回滚验证能力
+
+Redis Stream 通过配置开关默认关闭，避免两套消费者同时处理消息。
 
 ---
 
@@ -396,4 +481,4 @@ A：
 
 如果面试官让你最后用一句话总结项目，可以这样说：
 
-“这个项目最大的价值在于，我不仅做了普通的 Spring Boot 业务开发，还把 Python Agent、Text-to-SQL、Redis Stream 异步处理和统计一致性这些偏工程化、偏系统设计的问题串到了一个完整项目里。”  
+“这个项目最大的价值在于，我不仅做了普通的 Spring Boot 业务开发，还把 Python Agent、Text-to-SQL、Redis Stream 到 RocketMQ 的消息队列演进，以及统计一致性这些偏工程化、偏系统设计的问题串到了一个完整项目里。”

@@ -7,8 +7,9 @@ import com.example.activityagent.entity.Activity;
 import com.example.activityagent.entity.ActivityUserRecord;
 import com.example.activityagent.mapper.ActivityMapper;
 import com.example.activityagent.mapper.ActivityUserRecordMapper;
-import com.example.activityagent.mq.ActivityEventMessage;
-import com.example.activityagent.mq.RedisStreamPublisher;
+import com.example.activityagent.mq.constant.RocketMqConstant;
+import com.example.activityagent.mq.dto.AgentTaskMessage;
+import com.example.activityagent.mq.producer.AgentTaskProducer;
 import com.example.activityagent.service.ParticipateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ public class ParticipateServiceImpl implements ParticipateService {
 
     private final ActivityMapper activityMapper;
     private final ActivityUserRecordMapper activityUserRecordMapper;
-    private final RedisStreamPublisher redisStreamPublisher;
+    private final AgentTaskProducer agentTaskProducer;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -54,14 +55,15 @@ public class ParticipateServiceImpl implements ParticipateService {
         record.setParticipateTime(now);
         activityUserRecordMapper.insert(record);
 
-        // Publish an async event after the participate record is persisted.
-        ActivityEventMessage eventMessage = new ActivityEventMessage();
-        eventMessage.setEventType("PARTICIPATE");
-        eventMessage.setActivityId(record.getActivityId());
-        eventMessage.setUserId(record.getUserId());
-        eventMessage.setChannel(record.getChannel());
-        eventMessage.setEventTime(record.getParticipateTime());
-        redisStreamPublisher.publishActivityEvent(eventMessage);
+        // Publish an async RocketMQ task after the participate record is persisted.
+        AgentTaskMessage message = new AgentTaskMessage();
+        message.setTaskId(record.getId());
+        message.setEventType(RocketMqConstant.AGENT_TASK_TAG_PARTICIPATE);
+        message.setActivityId(record.getActivityId());
+        message.setUserId(record.getUserId());
+        message.setChannel(record.getChannel());
+        message.setEventTime(record.getParticipateTime());
+        agentTaskProducer.sendAgentTaskMessage(message);
 
         return record;
     }

@@ -32,3 +32,13 @@ agent:
   python-url: http://localhost:8000/agent/query
   connect-timeout-ms: 5000
   read-timeout-ms: 60000
+
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: agent-task-producer-group
+
+activity:
+  mq:
+    redis-stream:
+      enabled: false

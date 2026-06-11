@@ -10,9 +10,15 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * Legacy Redis Stream consumer retained for rollback only.
+ * Replaced by {@code com.example.activityagent.mq.consumer.AgentTaskConsumer}.
+ * This class is disabled by default together with {@code RedisStreamConfig}.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Deprecated(forRemoval = false)
 public class ActivityEventConsumer {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

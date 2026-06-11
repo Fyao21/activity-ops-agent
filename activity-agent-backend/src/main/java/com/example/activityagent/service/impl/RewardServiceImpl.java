@@ -9,8 +9,9 @@ import com.example.activityagent.entity.RewardRecord;
 import com.example.activityagent.mapper.ActivityMapper;
 import com.example.activityagent.mapper.ActivityUserRecordMapper;
 import com.example.activityagent.mapper.RewardRecordMapper;
-import com.example.activityagent.mq.RedisStreamPublisher;
-import com.example.activityagent.mq.RewardEventMessage;
+import com.example.activityagent.mq.constant.RocketMqConstant;
+import com.example.activityagent.mq.dto.AgentTaskMessage;
+import com.example.activityagent.mq.producer.AgentTaskProducer;
 import com.example.activityagent.service.RewardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,7 @@ public class RewardServiceImpl implements RewardService {
     private final ActivityMapper activityMapper;
     private final ActivityUserRecordMapper activityUserRecordMapper;
     private final RewardRecordMapper rewardRecordMapper;
-    private final RedisStreamPublisher redisStreamPublisher;
+    private final AgentTaskProducer agentTaskProducer;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -53,16 +54,17 @@ public class RewardServiceImpl implements RewardService {
         rewardRecord.setSendTime(null);
         rewardRecordMapper.insert(rewardRecord);
 
-        // Create an async reward event. The consumer finalizes send status and statistics.
-        RewardEventMessage eventMessage = new RewardEventMessage();
-        eventMessage.setEventType("SEND_REWARD");
-        eventMessage.setRewardRecordId(rewardRecord.getId());
-        eventMessage.setActivityId(rewardRecord.getActivityId());
-        eventMessage.setUserId(rewardRecord.getUserId());
-        eventMessage.setRewardType(rewardRecord.getRewardType());
-        eventMessage.setRewardAmount(rewardRecord.getRewardAmount());
-        eventMessage.setEventTime(LocalDateTime.now());
-        redisStreamPublisher.publishRewardEvent(eventMessage);
+        // Create an async RocketMQ task. The consumer finalizes send status and statistics.
+        AgentTaskMessage message = new AgentTaskMessage();
+        message.setTaskId(rewardRecord.getId());
+        message.setEventType(RocketMqConstant.AGENT_TASK_TAG_REWARD);
+        message.setRewardRecordId(rewardRecord.getId());
+        message.setActivityId(rewardRecord.getActivityId());
+        message.setUserId(rewardRecord.getUserId());
+        message.setRewardType(rewardRecord.getRewardType());
+        message.setRewardAmount(rewardRecord.getRewardAmount());
+        message.setEventTime(LocalDateTime.now());
+        agentTaskProducer.sendAgentTaskMessage(message);
 
         return rewardRecord;
     }

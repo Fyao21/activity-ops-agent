@@ -8,6 +8,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -26,6 +27,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
+/**
+ * Legacy Redis Stream bootstrap configuration retained for rollback only.
+ * RocketMQ is now the default queue implementation and this config is disabled
+ * unless {@code activity.mq.redis-stream.enabled=true} is explicitly set.
+ */
+@Deprecated(forRemoval = false)
+@ConditionalOnProperty(name = "activity.mq.redis-stream.enabled", havingValue = "true")
 public class RedisStreamConfig {
 
     private final RedisConnectionFactory redisConnectionFactory;

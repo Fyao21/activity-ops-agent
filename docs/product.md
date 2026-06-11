@@ -39,6 +39,7 @@
 * MySQL
 * Redis
 * Redis Stream 作为消息队列
+* RocketMQ 作为当前默认消息队列
 * Maven
 * Lombok
 
@@ -52,6 +53,7 @@ Java 后端负责：
 * 问答记录保存
 * Redis 缓存
 * Redis Stream 异步任务
+* RocketMQ 异步任务
 * 调用 Python Agent 服务
 
 ### 2.2 Python Agent 服务
@@ -261,7 +263,7 @@ POST /activity/participate
 1. 校验活动是否存在
 2. 校验活动是否正在进行
 3. 写入用户参与记录
-4. 发送 Redis Stream 消息，用于异步更新统计数据
+4. 原 Redis Stream 方案发送消息，用于异步更新统计数据；当前方案发送 RocketMQ `PARTICIPATE` 消息
 
 Redis Stream Key：
 
@@ -312,7 +314,7 @@ POST /reward/send
 
 1. 校验活动和用户参与记录
 2. 创建奖励发放记录，状态为 INIT
-3. 发送 Redis Stream 消息
+3. 原 Redis Stream 方案发送消息；当前方案发送 RocketMQ `REWARD` 消息
 4. 消费者异步处理奖励发放
 5. 发放成功后更新状态为 SUCCESS
 6. 发放失败后更新状态为 FAIL，并记录失败原因
@@ -777,6 +779,47 @@ group:reward:send
 * 消费成功后 ack
 * 消费失败记录日志，不 ack，允许后续重试
 
+### 8.3 RocketMQ 当前实现
+
+Redis Stream 需求和代码继续保留，当前默认消息链路已补充为 RocketMQ。
+
+Topic：
+
+```text
+agent-task-topic
+```
+
+Tag：
+
+```text
+PARTICIPATE
+REWARD
+```
+
+消费组：
+
+```text
+agent-task-consumer-group
+```
+
+生产组：
+
+```text
+agent-task-producer-group
+```
+
+处理要求：
+
+* `PARTICIPATE` 消息用于刷新参与统计
+* `REWARD` 消息用于更新奖励状态和奖励统计
+* 消费成功由监听方法正常返回确认
+* 消费失败通过抛出异常触发 RocketMQ 重试
+* 超过重试次数后进入死信队列
+* 参与统计通过源表重算保证幂等
+* 奖励任务通过 `reward_record.send_status` 保证幂等
+* Redis Stream 通过 `activity.mq.redis-stream.enabled` 开关控制，默认关闭
+* 保留 Redis Stream 源码作为历史方案和回滚参考
+
 ---
 
 ## 9. 接口清单
@@ -1050,7 +1093,8 @@ Java 后端统一返回：
 
 * Redis 缓存活动详情
 * Redis 缓存统计数据
-* Redis Stream 异步处理参与事件和奖励事件
+* Redis Stream 异步处理参与事件和奖励事件（保留方案）
+* RocketMQ 异步处理参与事件和奖励事件（当前默认方案）
 * 消费失败重试
 * 问答历史查询
 
@@ -1059,7 +1103,7 @@ Java 后端统一返回：
 * LangSmith 追踪配置
 * 简单前端页面
 * Docker Compose
-* RocketMQ 替代 Redis Stream
+* RocketMQ 替代 Redis Stream（已完成，Redis Stream 代码继续保留）
 * 多轮上下文记忆
 
 ---
@@ -1074,13 +1118,14 @@ Java 后端统一返回：
 4. MySQL 初始化数据完整。
 5. Redis 缓存功能可用。
 6. Redis Stream 可以发送和消费消息。
-7. 调用 `/agent/query` 可以输入自然语言问题。
-8. Agent 可以生成 SQL。
-9. Agent 可以执行 SQL 并返回查询结果。
-10. Agent 可以返回自然语言分析结论。
-11. 禁止执行 DELETE、UPDATE、INSERT、DROP 等危险 SQL。
-12. 问答记录可以保存到 MySQL。
-13. README 中有完整启动说明。
+7. RocketMQ 可以发送和消费 `PARTICIPATE`、`REWARD` 消息。
+8. 调用 `/agent/query` 可以输入自然语言问题。
+9. Agent 可以生成 SQL。
+10. Agent 可以执行 SQL 并返回查询结果。
+11. Agent 可以返回自然语言分析结论。
+12. 禁止执行 DELETE、UPDATE、INSERT、DROP 等危险 SQL。
+13. 问答记录可以保存到 MySQL。
+14. README 中有完整启动说明。
 
 ---
 

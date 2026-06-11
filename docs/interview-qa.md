@@ -35,6 +35,7 @@
 - MySQL
 - Redis
 - Redis Stream
+- RocketMQ
 
 主要职责：
 
@@ -188,6 +189,19 @@
 - 参与活动后异步刷新统计数据
 - 发奖后异步更新奖励状态和统计数据
 
+### 5.4A 我把默认消息队列迁移到了 RocketMQ
+
+在 Redis Stream 链路跑通后，我保留了原有实现，并新增 RocketMQ：
+
+- Topic：`agent-task-topic`
+- Tag：`PARTICIPATE`、`REWARD`
+- Producer Group：`agent-task-producer-group`
+- Consumer Group：`agent-task-consumer-group`
+- 消费异常由 Broker 自动重试
+- 多次重试失败后进入死信队列
+
+当前 Redis Stream 通过配置开关默认关闭，代码仍保留用于方案对比和回滚验证。
+
 ### 5.5 我配合完成了 Python Agent 侧的 SQL 安全控制
 
 核心安全约束：
@@ -223,6 +237,18 @@
 - 主流程响应更快
 - 统计逻辑和业务写入逻辑解耦
 - 更接近真实业务系统里的消息驱动架构
+
+### 6.2A 亮点二补充：完成 Redis Stream 到 RocketMQ 的方案演进
+
+这个项目不是只接入一个 MQ，而是先用 Redis Stream 快速验证异步模型，
+再迁移到 RocketMQ。迁移过程中保持业务消息结构和幂等逻辑稳定，仅替换
+消息基础设施和消费确认机制。
+
+这个点可以体现：
+
+- 能根据项目阶段选择合适的中间件
+- 理解 Redis Stream ACK/pending 与 RocketMQ 重试/DLQ 的差异
+- 能控制迁移范围并保留回滚能力
 
 ### 6.3 亮点三：统计数据按天重算，而不是简单累加
 
@@ -347,6 +373,30 @@ A：
 - 支持 pending 消息
 - 支持 ack 机制
 - 比普通 list 更适合做异步事件流
+
+---
+
+### Q5A：为什么后来迁移到 RocketMQ？
+
+A：
+
+Redis Stream 适合快速实现，但 RocketMQ 对 Topic、Tag、消费组、失败重试
+和死信队列提供了更完整的消息治理能力。因此我先用 Redis Stream 验证
+业务链路，再把当前默认实现迁移为 RocketMQ。
+
+迁移后参与和奖励任务共用 `agent-task-topic`，通过 `PARTICIPATE` 和
+`REWARD` 两个 Tag 隔离。Redis Stream 源码没有删除，只通过配置关闭，
+便于对比和回滚。
+
+---
+
+### Q5B：RocketMQ 如何处理重复消费？
+
+A：
+
+参与统计不是执行 `+1`，而是根据源表重新计算指定活动当天的数据；
+奖励任务通过 `reward_record.send_status` 判断是否已经处理。两种方式都
+能让重复投递得到相同的最终结果。
 
 ---
 
@@ -489,7 +539,7 @@ A：
 ### 当前不足
 
 1. 登录后还没有做完整 token 鉴权
-2. Redis Stream 还没有做自动重试和死信队列
+2. RocketMQ 已具备默认重试和死信能力，但还缺少告警、DLQ 巡检和补偿消费
 3. 奖励发放目前是模拟成功路径，没有接真实三方服务
 4. Agent 目前主要是单轮问答
 5. 测试覆盖还不够完整
@@ -497,7 +547,7 @@ A：
 ### 后续优化
 
 1. 增加 Spring 拦截器统一鉴权
-2. 对 Redis Stream pending 消息做自动认领和重试
+2. 完善 RocketMQ 重试配置、失败告警和 DLQ 补偿，同时补充 Redis Stream pending 自动认领作为旧方案对照
 3. 增加只读数据库账号与数据库最小权限控制
 4. 增加监控告警
 5. 增加单元测试、接口测试、联调测试
@@ -509,10 +559,10 @@ A：
 如果面试官让你快速介绍项目，可以直接这样说：
 
 “我做过一个活动运营数据分析 Agent 项目，整体是 Java 后端加 Python Agent 双服务架构。  
-Java 后端用 Spring Boot、MyBatis-Plus、MySQL、Redis，负责登录、活动管理、参与记录、奖励记录、统计查询以及调用 Python Agent。  
+Java 后端用 Spring Boot、MyBatis-Plus、MySQL、Redis 和 RocketMQ，负责登录、活动管理、参与记录、奖励记录、统计查询以及调用 Python Agent。
 Python 服务用 FastAPI 和 LangChain，把自然语言转成 SQL，并做 SQL 安全校验和结果总结。  
-另外我还用 Redis Stream 做了参与事件和奖励事件的异步处理，消费成功后 ack，失败不 ack，保证后续可以重试。  
-这个项目里我重点做了后端分层设计、Java 调 Python 联调、问答记录落库、以及 Redis Stream 异步统计更新。”  
+消息队列方面，我先用 Redis Stream 跑通异步链路，再迁移到 RocketMQ，通过 Topic 和 Tag 处理参与与奖励任务，并通过重试、死信和业务幂等保证可靠性。
+这个项目里我重点做了后端分层设计、Java 调 Python 联调、问答记录落库，以及消息队列迁移和异步统计更新。”
 
 ---
 

@@ -1,0 +1,18 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: rocketmq-dashboard
+
+rocketmq:
+  config:
+    namesrvAddrs:
+      - 127.0.0.1:9876
+    isVIPChannel: false
+    # Dashboard 2.0.0 uses RocketMQ 5.1.0 clients. Its historical chart
+    # collector cannot read some RocketMQ 5.3.4 broker statistics.
+    enableDashBoardCollect: false
+    dataPath: C:/Users/w2922/logs/dashboard-data
+    loginRequired: false
+    useTLS: false

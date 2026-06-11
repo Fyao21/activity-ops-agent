@@ -11,9 +11,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Legacy Redis Stream publisher retained for rollback only.
+ * Replaced by {@code com.example.activityagent.mq.producer.AgentTaskProducer}.
+ * This class is no longer used by the main business flow.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Deprecated(forRemoval = false)
 public class RedisStreamPublisher {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

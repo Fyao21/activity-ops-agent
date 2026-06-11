@@ -202,7 +202,8 @@ http://localhost:5173
 
 1. 用户是否已经先参与活动
 2. 活动 ID 和用户 ID 是否对应
-3. Redis Stream 异步消费是否正常
+3. RocketMQ 的 `agent-task-consumer-group` 是否正常消费
+4. 如果正在回滚验证旧方案，再检查 Redis Stream 异步消费
 
 ## 11. 补充说明
 

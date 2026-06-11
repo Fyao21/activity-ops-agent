@@ -15,7 +15,8 @@
 - 奖励发放记录
 - 活动统计查询
 - 自然语言查询活动数据
-- Redis Stream 异步处理参与事件和奖励事件
+- RocketMQ 异步处理参与事件和奖励事件
+- 保留 Redis Stream 旧实现，便于对照和回滚验证
 
 ## 2. 项目结构
 
@@ -40,6 +41,7 @@ activity-agent/
 - MyBatis-Plus
 - MySQL
 - Redis
+- RocketMQ
 - Redis Stream
 
 ### 3.2 Agent 服务
@@ -95,6 +97,17 @@ database: 0
 http://localhost:8000/agent/query
 ```
 
+### 5.4 RocketMQ
+
+```text
+NameServer: 127.0.0.1:9876
+Broker: 10911
+Dashboard: 8088
+Topic: agent-task-topic
+Producer Group: agent-task-producer-group
+Consumer Group: agent-task-consumer-group
+```
+
 ## 6. 快速启动
 
 ### 6.1 初始化数据库
@@ -115,7 +128,33 @@ mysql -uroot -pwt292292 < sql/init.sql
 password: 1234
 ```
 
-### 6.3 启动 Python Agent 服务
+### 6.3 启动 RocketMQ
+
+启动 NameServer：
+
+```powershell
+mqnamesrv.cmd
+```
+
+启动 Broker：
+
+```powershell
+mqbroker.cmd -n 127.0.0.1:9876 autoCreateTopicEnable=true
+```
+
+可选启动 Dashboard：
+
+```powershell
+java -jar rocketmq-dashboard-2.0.0.jar --spring.config.location=file:E:/Project/activity-agent/rocketmq-dashboard.yml
+```
+
+Dashboard 地址：
+
+```text
+http://localhost:8088
+```
+
+### 6.4 启动 Python Agent 服务
 
 ```powershell
 cd E:\Project\activity-agent\agent-service
@@ -130,7 +169,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 curl http://localhost:8000/health
 ```
 
-### 6.4 启动后端服务
+### 6.5 启动后端服务
 
 ```powershell
 cd E:\Project\activity-agent\activity-agent-backend
@@ -151,7 +190,7 @@ curl http://localhost:8080/health
 3. 查询活动列表和详情
 4. 用户参与活动
 5. 发放奖励
-6. 查看 Redis Stream 消息
+6. 在 RocketMQ Dashboard 中查看 `agent-task-topic`
 7. 查看 `activity_statistics` 是否更新
 8. 调用 `/agent/query`
 9. 查看 `agent_qa_record`
@@ -190,19 +229,96 @@ curl -X POST "http://localhost:8080/agent/query" \
   -d "{\"question\":\"统计最近7天各活动的参与人数\",\"user_id\":1}"
 ```
 
-## 9. Redis Stream 使用说明
+## 9. RocketMQ 使用说明
 
-### 9.1 Stream
+当前默认使用 RocketMQ，参与事件和奖励事件共用一个 Topic，通过 Tag 区分业务类型。
+
+### 9.1 Topic 与 Tag
+
+| 类型 | 配置 |
+| --- | --- |
+| Topic | `agent-task-topic` |
+| 参与事件 Tag | `PARTICIPATE` |
+| 奖励事件 Tag | `REWARD` |
+| Producer Group | `agent-task-producer-group` |
+| Consumer Group | `agent-task-consumer-group` |
+
+### 9.2 生产流程
+
+参与活动：
+
+1. 同步写入 `activity_user_record`
+2. 向 `agent-task-topic:PARTICIPATE` 发送消息
+3. 消费者按“活动 + 日期”重算参与人数
+
+奖励发放：
+
+1. 同步写入 `reward_record`，初始 `send_status = 0`
+2. 向 `agent-task-topic:REWARD` 发送消息
+3. 消费者更新奖励状态并重算奖励统计
+
+### 9.3 重试与幂等
+
+- 消费方法正常结束表示消费成功，无需手动 ACK
+- 消费抛出异常时由 RocketMQ 重新投递
+- 多次重试失败后进入死信队列
+- 参与统计采用源表重算，重复消费不会重复累加
+- 奖励任务使用 `reward_record.send_status` 判断是否已处理
+
+### 9.4 常用验证命令
+
+查看 Topic：
+
+```powershell
+mqadmin.cmd topicList -n 127.0.0.1:9876
+```
+
+查看 Topic 路由：
+
+```powershell
+mqadmin.cmd topicRoute -n 127.0.0.1:9876 -t agent-task-topic
+```
+
+查看消费进度：
+
+```powershell
+mqadmin.cmd consumerProgress -n 127.0.0.1:9876 -g agent-task-consumer-group
+```
+
+查看整体统计：
+
+```powershell
+mqadmin.cmd statsAll -n 127.0.0.1:9876
+```
+
+详细迁移与验证步骤见：
+
+- [activity-agent-backend/docs/rocketmq-migration-guide.md](E:\Project\activity-agent\activity-agent-backend\docs\rocketmq-migration-guide.md)
+
+## 10. Redis Stream 使用说明（保留方案）
+
+Redis Stream 是项目最初的消息队列实现，相关代码仍然保留，但当前默认关闭：
+
+```yaml
+activity:
+  mq:
+    redis-stream:
+      enabled: false
+```
+
+如需对照或回滚验证，可将 `enabled` 临时改为 `true`。不要在同一环境中同时启用两套消费者，否则同一业务事件可能被重复处理。
+
+### 10.1 Stream
 
 - `stream:activity:event`
 - `stream:reward:event`
 
-### 9.2 消费者组
+### 10.2 消费者组
 
 - `group:activity:stat`
 - `group:reward:send`
 
-### 9.3 消费逻辑
+### 10.3 消费逻辑
 
 参与事件消费者：
 
@@ -219,7 +335,7 @@ curl -X POST "http://localhost:8080/agent/query" \
 - 成功后 `ack`
 - 失败只记录日志，不 `ack`
 
-### 9.4 Redis CLI 命令
+### 10.4 Redis CLI 命令
 
 查看参与事件：
 
@@ -257,7 +373,7 @@ redis-cli -h 192.168.100.128 -p 6379 -a 1234 XPENDING stream:activity:event grou
 redis-cli -h 192.168.100.128 -p 6379 -a 1234 XPENDING stream:reward:event group:reward:send
 ```
 
-## 10. 常用验证 SQL
+## 11. 常用验证 SQL
 
 查看最新统计：
 
@@ -283,15 +399,18 @@ FROM agent_qa_record
 ORDER BY id DESC;
 ```
 
-## 11. 相关文档
+## 12. 相关文档
 
 - 产品文档：[docs/product.md](E:\Project\activity-agent\docs\product.md)
 - 后端文档：[activity-agent-backend/README.md](E:\Project\activity-agent\activity-agent-backend\README.md)
+- RocketMQ 迁移文档：[activity-agent-backend/docs/rocketmq-migration-guide.md](E:\Project\activity-agent\activity-agent-backend\docs\rocketmq-migration-guide.md)
+- RocketMQ Dashboard 故障复盘：[docs/rocketmq-dashboard-port-conflict-incident.md](E:\Project\activity-agent\docs\rocketmq-dashboard-port-conflict-incident.md)
 - Agent 文档：[agent-service/README.md](E:\Project\activity-agent\agent-service\README.md)
 
-## 12. 说明
+## 13. 说明
 
 - 当前后端配置是写死的，不是环境变量占位符方式
-- 奖励发放是通过 Redis Stream 异步完成的
+- 当前默认通过 RocketMQ 异步处理参与事件和奖励事件
+- Redis Stream 旧代码仍保留，但默认关闭
 - 统计更新是按“活动 + 日期”重算，避免消息重试导致重复累计
 - 当前仓库不包含前端页面

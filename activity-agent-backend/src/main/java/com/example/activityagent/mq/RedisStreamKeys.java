@@ -1,5 +1,11 @@
 package com.example.activityagent.mq;
 
+/**
+ * Legacy Redis Stream keys kept only for rollback and source comparison.
+ * RocketMQ is now the default message queue implementation.
+ * After RocketMQ runs stably in all environments, this class can be removed.
+ */
+@Deprecated(forRemoval = false)
 public final class RedisStreamKeys {
 
     public static final String ACTIVITY_EVENT_STREAM = "stream:activity:event";

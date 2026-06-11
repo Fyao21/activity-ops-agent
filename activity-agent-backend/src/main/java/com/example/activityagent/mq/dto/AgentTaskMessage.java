@@ -1,21 +1,20 @@
-package com.example.activityagent.mq;
+package com.example.activityagent.mq.dto;
 
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * Legacy Redis Stream payload retained for rollback only.
- * The active RocketMQ payload is {@code AgentTaskMessage}.
- */
 @Data
-@Deprecated(forRemoval = false)
-public class RewardEventMessage {
+public class AgentTaskMessage implements Serializable {
+
+    private Long taskId;
     private String eventType;
     private Long rewardRecordId;
     private Long activityId;
     private Long userId;
+    private String channel;
     private String rewardType;
     private BigDecimal rewardAmount;
     private LocalDateTime eventTime;
