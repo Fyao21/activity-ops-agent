@@ -35,8 +35,11 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="yuu-page flex items-center justify-center px-4 py-20">
-      <div className="w-full max-w-md animate-fade-in-up">
+    <main className="yuu-page flex items-center justify-center px-6 sm:px-12 py-20 overflow-hidden">
+      <div className="yuu-orb yuu-orb-a" aria-hidden="true" />
+      <div className="yuu-orb yuu-orb-b" aria-hidden="true" />
+
+      <div className="w-full max-w-md animate-fade-in-up" style={{ zIndex: 2 }}>
         <LiquidGlassPanel
           cornerRadius={36}
           displacementScale={70}
@@ -49,50 +52,57 @@ export default function LoginPage() {
         >
           <div className="p-8">
             {/* Logo */}
-            <div className="flex flex-col items-center mb-6">
+            <div className="flex flex-col items-center mb-8">
               <div className="ai-chat-mark mb-4">
                 <Shield className="h-5 w-5" />
               </div>
-              <h1 className="text-2xl font-extrabold text-[#07111f]">Activity Ops Agent</h1>
-              <p className="mt-1 text-sm text-[#53657d]">登录以管理活动运营数据</p>
+              <h1
+                style={{
+                  fontSize: "clamp(1.6rem, 4vw, 2.2rem)",
+                  fontWeight: 800,
+                  color: "var(--yuu-text)",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Activity Ops
+              </h1>
+              <p className="mt-1 text-sm" style={{ color: "var(--yuu-muted)" }}>
+                登录以管理活动运营数据
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
-                <label className="block text-sm font-semibold text-[#07111f] mb-1.5">用户名</label>
+                <label className="yuu-label">用户名</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="请输入用户名"
-                  className="w-full rounded-xl border border-white/70 bg-white/50 backdrop-blur px-4 py-2.5 text-sm text-[#07111f] placeholder:text-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+                  className="yuu-input"
                   autoComplete="username"
                   disabled={loading}
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#07111f] mb-1.5">密码</label>
+                <label className="yuu-label">密码</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="请输入密码"
-                  className="w-full rounded-xl border border-white/70 bg-white/50 backdrop-blur px-4 py-2.5 text-sm text-[#07111f] placeholder:text-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+                  className="yuu-input"
                   autoComplete="current-password"
                   disabled={loading}
                 />
               </div>
 
-              {error && (
-                <div className="rounded-xl bg-red-50/80 backdrop-blur border border-red-200 px-4 py-2.5 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
+              {error && <div className="yuu-alert is-error">{error}</div>}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="liquid-action mt-2 flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-gradient-to-r from-cyan-500 to-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-200/40 hover:shadow-xl hover:shadow-cyan-300/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="yuu-btn-primary mt-2 w-full"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -103,7 +113,10 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="mt-6 text-center text-xs text-[#94a3b8]">
+            <p
+              className="mt-6 text-center text-xs"
+              style={{ color: "var(--yuu-muted)" }}
+            >
               <Sparkles className="inline h-3 w-3 mr-1" />
               Admin / Operator 角色均可登录使用
             </p>

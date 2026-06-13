@@ -16,7 +16,6 @@ import {
 
 import { agentQuery } from "../api/client";
 import HistorySidebar from "../components/HistorySidebar";
-import LiquidGlassPanel from "../components/LiquidGlassPanel";
 import Message from "../components/Message";
 import { useConversations } from "../features/chat/useConversations";
 import { useAuth } from "../features/auth/AuthContext";
@@ -133,10 +132,10 @@ export default function AIChatPage() {
 
       const result = res.data;
       const answer = result?.answer || "查询完成，但未返回文字结果。";
-      const sql = result?.generated_sql || "";
-      const queryData = result?.query_result || [];
-      const riskLevel = result?.risk_level ?? 0;
-      const riskReason = result?.risk_reason || "";
+      const sql = result?.generatedSql || result?.generated_sql || "";
+      const queryData = result?.queryResult || result?.query_result || [];
+      const riskLevel = result?.riskLevel ?? result?.risk_level ?? 0;
+      const riskReason = result?.riskReason || result?.risk_reason || "";
 
       setIsLoading(false);
       setIsTypewriting(true);
@@ -193,7 +192,7 @@ export default function AIChatPage() {
   }, []);
 
   return (
-    <main className="ai-chat-page yuu-page relative flex h-[calc(100vh-56px)] text-slate-950">
+    <main className="ai-chat-page relative flex h-[calc(100vh-60px)]">
       <div className="ai-chat-ambient" aria-hidden="true" />
 
       <HistorySidebar
@@ -207,15 +206,30 @@ export default function AIChatPage() {
       <div className="ai-chat-main relative flex flex-1 flex-col overflow-hidden">
         {/* Top bar (mobile) */}
         <div className="ai-chat-topbar md:hidden">
-          <button type="button" onClick={() => setIsSidebarOpen(true)} aria-label="打开历史侧栏" className="liquid-action rounded-xl p-2">
-            <Menu className="h-5 w-5 text-slate-600" />
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="打开历史侧栏"
+            className="rounded-xl p-2"
+            style={{ color: "var(--yuu-muted)" }}
+          >
+            <Menu className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-            <Bot className="h-4 w-4 text-cyan-600" />
+          <div
+            className="flex items-center gap-2 text-sm"
+            style={{ fontWeight: 600, color: "var(--yuu-text)" }}
+          >
+            <Bot className="h-4 w-4" style={{ color: "var(--yuu-accent)" }} />
             AI 分析助手
           </div>
-          <button type="button" onClick={startNewConversation} aria-label="新建查询" className="liquid-action rounded-xl p-2">
-            <Plus className="h-5 w-5 text-slate-600" />
+          <button
+            type="button"
+            onClick={startNewConversation}
+            aria-label="新建查询"
+            className="rounded-xl p-2"
+            style={{ color: "var(--yuu-muted)" }}
+          >
+            <Plus className="h-5 w-5" />
           </button>
         </div>
 
@@ -223,46 +237,34 @@ export default function AIChatPage() {
         <div className="ai-chat-scroll flex-1 overflow-y-auto px-4 py-6">
           {messages.length === 0 && (
             <div className="ai-chat-empty mx-auto">
-              <LiquidGlassPanel
-                className="ai-chat-empty-glass"
-                cornerRadius={36}
-                displacementScale={70}
-                blurAmount={0.0625}
-                saturation={140}
-                aberrationIntensity={2}
-                elasticity={0.15}
-                mode="prominent"
-                overLight
-              >
-                <div className="ai-chat-empty-inner">
-                  <div className="ai-chat-mark">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <h1>Activity Ops AI</h1>
-                  <p>
-                    用自然语言查询活动运营数据。AI 会自动将你的问题转换为 SQL，
-                    经过安全校验后执行并返回结果。
-                    支持活动查询、参与统计、奖励分析等多维度数据洞察。
-                  </p>
-
-                  {/* Quick prompt chips */}
-                  <div className="ai-chat-guide-grid">
-                    {QUICK_PROMPTS.map(({ icon: Icon, text }) => (
-                      <button
-                        key={text}
-                        type="button"
-                        onClick={() => handleQuickPrompt(text)}
-                        className="ai-guide-chip"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <Icon className="h-3.5 w-3.5 text-cyan-600" />
-                          <span>{text}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+              <div className="ai-chat-empty-inner">
+                <div className="ai-chat-mark">
+                  <Sparkles className="h-5 w-5" />
                 </div>
-              </LiquidGlassPanel>
+                <h1>Activity Ops AI</h1>
+                <p>
+                  用自然语言查询活动运营数据。AI 会自动将你的问题转换为 SQL，
+                  经过安全校验后执行并返回结果。
+                  支持活动查询、参与统计、奖励分析等多维度数据洞察。
+                </p>
+
+                {/* Quick prompt chips */}
+                <div className="ai-chat-guide-grid">
+                  {QUICK_PROMPTS.map(({ icon: Icon, text }) => (
+                    <button
+                      key={text}
+                      type="button"
+                      onClick={() => handleQuickPrompt(text)}
+                      className="ai-guide-chip"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5" style={{ color: "var(--yuu-accent)" }} />
+                        <span>{text}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -275,8 +277,8 @@ export default function AIChatPage() {
 
           {isLoading && (
             <div className="mb-4 flex">
-              <div className="ai-thinking liquid-native-card">
-                <Loader2 className="h-4 w-4 animate-spin text-cyan-700" />
+              <div className="ai-thinking">
+                <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--yuu-accent)" }} />
                 <span>{statusText || "AI 正在处理..."}</span>
               </div>
             </div>
@@ -289,22 +291,12 @@ export default function AIChatPage() {
         <div className="ai-chat-composer-wrap">
           <div className="ai-chat-status-row">
             <span>{statusText || "Enter 发送，Shift+Enter 换行"}</span>
-            <span className="hidden sm:inline text-cyan-700 font-semibold">
+            <span className="hidden sm:inline" style={{ color: "var(--yuu-accent)", fontWeight: 600 }}>
               Text-to-SQL · 安全校验 · 活动数据洞察
             </span>
           </div>
 
-          <LiquidGlassPanel
-            className="ai-composer-glass"
-            cornerRadius={28}
-            displacementScale={70}
-            blurAmount={0.0625}
-            saturation={140}
-            aberrationIntensity={2}
-            elasticity={0.15}
-            mode="prominent"
-            overLight
-          >
+          <div className="ai-composer-glass">
             <div className="ai-composer">
               <textarea
                 rows="1"
@@ -334,7 +326,7 @@ export default function AIChatPage() {
                 )}
               </button>
             </div>
-          </LiquidGlassPanel>
+          </div>
         </div>
       </div>
     </main>

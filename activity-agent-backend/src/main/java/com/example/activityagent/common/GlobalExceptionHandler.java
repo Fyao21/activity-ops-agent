@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleBusinessException(BusinessException ex) {
         ErrorCode ec = ex.getErrorCode();
         // Use ex.getMessage() for the detail message; fallback to errorCode default
@@ -29,7 +30,7 @@ public class GlobalExceptionHandler {
         r.setCode(ec.getCode());
         r.setMessage(msg != null ? msg : ec.getMessage());
         r.setData(null);
-        r.setRequestId(java.util.UUID.randomUUID().toString().substring(0, 8));
+        r.setRequestId(UUID.randomUUID().toString().substring(0, 8));
         r.setTimestamp(System.currentTimeMillis());
         return r;
     }
@@ -65,12 +66,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
     public Result<Void> handleNoResourceFoundException(NoResourceFoundException ex) {
         log.warn("Resource not found: {}", ex.getResourcePath());
         return Result.fail(ErrorCode.RESOURCE_NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception ex) {
         log.error("Unhandled exception", ex);
         return Result.fail(ErrorCode.SYSTEM_ERROR);

@@ -13,6 +13,7 @@ import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.PendingMessagesSummary;
+import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamRecords;
@@ -109,7 +110,7 @@ public class RedisStreamConfig {
                         streamKey, groupName,
                         consumerName,
                         Duration.ofMinutes(1),
-                        msg.getIdAsString()
+                        RecordId.of(msg.getIdAsString())
                     );
                     log.info("Claimed idle pending message: {}/{} msg={}", streamKey, groupName, msg.getIdAsString());
                 }

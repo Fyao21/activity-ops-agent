@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: ./activity-agent-backend
+    container_name: ao-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: activity_agent
+      MYSQL_USER: agent_user
+      MYSQL_PASSWORD: Agent123456
+      REDIS_HOST: host.docker.internal
+      REDIS_PORT: 6379
+      AGENT_PYTHON_URL: http://agent-service:8000
+
+  agent-service:
+    build: ./agent-service
+    container_name: ao-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.deepseek.com/v1}
+      MODEL_NAME: ${MODEL_NAME:-deepseek-chat}
+      MYSQL_HOST: host.docker.internal
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: activity_agent
+      MYSQL_USER: agent_user
+      MYSQL_PASSWORD: Agent123456

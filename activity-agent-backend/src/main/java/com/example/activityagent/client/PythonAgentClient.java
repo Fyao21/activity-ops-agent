@@ -29,7 +29,7 @@ public class PythonAgentClient {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<AgentQueryRequest> entity = new HttpEntity<>(request, headers);
             ResponseEntity<AgentQueryResponse> response = restTemplate.exchange(
-                agentProperties.getPythonUrl(),
+                agentProperties.getFullUrl(),
                 org.springframework.http.HttpMethod.POST,
                 entity,
                 new ParameterizedTypeReference<>() {

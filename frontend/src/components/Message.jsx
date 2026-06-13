@@ -23,7 +23,7 @@ function renderLinkedText(text = "", isUser = false) {
         {match[1]}
       </a>
     );
-    lastIndex = linkPattern.lastIndex;
+    lastIndex = match.lastIndex;
   }
   if (lastIndex < text.length) parts.push(text.slice(lastIndex));
   return parts.length ? parts : text;
@@ -58,7 +58,10 @@ function SqlBlock({ sql }) {
   if (!sql) return null;
   return (
     <details className="mt-3">
-      <summary className="cursor-pointer text-xs font-bold text-cyan-700 hover:text-cyan-900 flex items-center gap-1.5">
+      <summary
+        className="cursor-pointer text-xs flex items-center gap-1.5"
+        style={{ fontWeight: 600, color: "var(--yuu-accent)" }}
+      >
         <Database className="h-3.5 w-3.5" />
         查看生成的 SQL
       </summary>
@@ -97,7 +100,15 @@ export default function Message({ message }) {
   if (message.role === "system") {
     return (
       <div className="flex justify-center mb-3">
-        <div className="liquid-native-card rounded-full px-4 py-1.5 text-xs text-slate-500 font-medium">
+        <div
+          className="rounded-full px-4 py-1.5 text-xs font-medium"
+          style={{
+            border: "1px solid var(--yuu-border)",
+            background: "var(--yuu-panel)",
+            backdropFilter: "blur(18px)",
+            color: "var(--yuu-muted)",
+          }}
+        >
           {message.text}
         </div>
       </div>
@@ -112,7 +123,7 @@ export default function Message({ message }) {
         </div>
       )}
 
-      <article className={`ai-message-bubble liquid-native-card ${isUser ? "is-user" : "is-assistant"}`}>
+      <article className={`ai-message-bubble ${isUser ? "is-user" : "is-assistant"}`}>
         {/* Risk indicator for assistant messages */}
         {!isUser && message.riskLevel !== undefined && (
           <div className="mb-2">
@@ -121,7 +132,10 @@ export default function Message({ message }) {
         )}
 
         {message.isError ? (
-          <div className="flex items-center gap-1.5 text-red-500 text-xs font-semibold">
+          <div
+            className="flex items-center gap-1.5 text-xs font-semibold"
+            style={{ color: "var(--color-high)" }}
+          >
             <AlertTriangle className="h-3.5 w-3.5" />
             {message.text}
           </div>
@@ -134,7 +148,7 @@ export default function Message({ message }) {
               </p>
             )}
             {message.streaming && !message.text && (
-              <p className="text-slate-400 italic">正在查询活动数据...</p>
+              <p style={{ color: "var(--yuu-muted)", fontStyle: "italic" }}>正在查询活动数据...</p>
             )}
 
             {/* SQL block */}

@@ -8,7 +8,7 @@ spring:
     name: activity-agent-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:activity_agent}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:activity_agent}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
     hikari:
@@ -24,8 +24,10 @@ spring:
       database: ${REDIS_DATABASE:0}
       timeout: 5s
   jackson:
-    default-property-inclusion: non_null
+    default-property-inclusion: always
     time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
 
 mybatis-plus:
   configuration:
@@ -36,6 +38,7 @@ mybatis-plus:
       id-type: auto
 
 agent:
-  python-url: ${AGENT_PYTHON_URL:http://localhost:8000}/agent/query
+  python-base-url: ${AGENT_PYTHON_URL:http://localhost:8000}
+  python-endpoint: /agent/query
   connect-timeout-ms: 5000
   read-timeout-ms: 60000

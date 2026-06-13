@@ -2,133 +2,68 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, ListChecks, Loader2, Tag } from "lucide-react";
 import { getActivity } from "../api/client";
-import LiquidGlassPanel from "../components/LiquidGlassPanel";
 
-const STATUS_MAP = {
-  0: { label: "未开始", cls: "bg-slate-100 text-slate-600" },
-  1: { label: "进行中", cls: "bg-emerald-100 text-emerald-700" },
-  2: { label: "已结束", cls: "bg-rose-100 text-rose-700" },
-};
+const SM = {0:{l:"未开始",c:"status-badge-pending"},1:{l:"进行中",c:"status-badge-active"},2:{l:"已结束",c:"status-badge-ended"}};
 
 export default function ActivityDetailPage() {
   const { id } = useParams();
-  const [activity, setActivity] = useState(null);
+  const [a, setA] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await getActivity(id);
-        if (!cancelled) setActivity(res.data);
-      } catch (err) {
-        if (!cancelled) setError(err.message || "加载活动详情失败");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  useEffect(()=>{
+    let cancel=false;
+    (async()=>{
+      setLoading(true); setErr("");
+      try{ const r = await getActivity(id); if(!cancel) setA(r.data); }
+      catch(e){ if(!cancel) setErr(e.message); }
+      finally{ if(!cancel) setLoading(false); }
     })();
-    return () => { cancelled = true; };
-  }, [id]);
+    return ()=>{ cancel=true; };
+  },[id]);
 
-  const status = activity ? STATUS_MAP[activity.status] || STATUS_MAP[0] : null;
+  const s = a ? SM[a.status]||SM[0] : null;
 
   return (
-    <main className="yuu-page px-4 py-8 sm:px-8">
-      <div className="mx-auto max-w-3xl">
-        <Link
-          to="/activities"
-          className="liquid-action mb-6 inline-flex items-center gap-1.5 rounded-xl border border-white/60 bg-white/50 px-4 py-2 text-sm font-semibold text-[#53657d] hover:text-[#07111f]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回活动列表
-        </Link>
+    <div className="yuu-page px-4 py-7">
+      <div className="yuu-orb yuu-orb-b" />
+      <div className="max-w-[800px] mx-auto relative z-10">
+        <Link to="/activities" className="yuu-btn-ghost mb-5 inline-flex items-center gap-1"><ArrowLeft className="h-4 w-4"/>返回</Link>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-cyan-500" />
-            <span className="ml-2 text-[#53657d]">加载中...</span>
-          </div>
-        ) : error ? (
-          <div className="rounded-xl bg-red-50/80 backdrop-blur border border-red-200 px-4 py-3 text-sm text-red-600">
-            {error}
-          </div>
-        ) : activity ? (
-          <LiquidGlassPanel
-            cornerRadius={28}
-            displacementScale={60}
-            blurAmount={0.05}
-            saturation={130}
-            aberrationIntensity={1.5}
-            elasticity={0.13}
-            mode="prominent"
-            overLight
-          >
-            <div className="p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono text-[#94a3b8]">ID: {activity.id}</span>
-                    {status && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${status.cls}`}>
-                        {status.label}
-                      </span>
-                    )}
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-[#07111f]">{activity.activityName}</h1>
-                </div>
+          <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin" style={{color:"var(--yuu-accent)"}}/></div>
+        ) : err ? (
+          <div className="yuu-alert is-error">{err}</div>
+        ) : a ? (
+          <div className="animate-fade-in-up">
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-mono" style={{color:"var(--yuu-muted)"}}>#{a.id}</span>
+                {s && <span className={`status-badge text-[10px] ${s.c}`}>{s.l}</span>}
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 mb-6">
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-white/40 backdrop-blur border border-white/50">
-                  <Tag className="h-5 w-5 text-cyan-600" />
-                  <div>
-                    <p className="text-xs text-[#94a3b8] font-semibold">活动类型</p>
-                    <p className="text-sm text-[#07111f] font-bold">{activity.activityType || "未设置"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-white/40 backdrop-blur border border-white/50">
-                  <Calendar className="h-5 w-5 text-cyan-600" />
-                  <div>
-                    <p className="text-xs text-[#94a3b8] font-semibold">开始时间</p>
-                    <p className="text-sm text-[#07111f] font-bold">{activity.startTime?.slice(0, 16) || "未设置"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-white/40 backdrop-blur border border-white/50">
-                  <Clock className="h-5 w-5 text-cyan-600" />
-                  <div>
-                    <p className="text-xs text-[#94a3b8] font-semibold">结束时间</p>
-                    <p className="text-sm text-[#07111f] font-bold">{activity.endTime?.slice(0, 16) || "未设置"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-white/40 backdrop-blur border border-white/50">
-                  <Clock className="h-5 w-5 text-cyan-600" />
-                  <div>
-                    <p className="text-xs text-[#94a3b8] font-semibold">最后更新</p>
-                    <p className="text-sm text-[#07111f] font-bold">{activity.updateTime?.slice(0, 16) || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {activity.ruleDesc && (
-                <div className="p-4 rounded-xl bg-white/40 backdrop-blur border border-white/50">
-                  <h3 className="text-sm font-bold text-[#07111f] mb-2">
-                    <ListChecks className="h-4 w-4 inline mr-1" />
-                    活动规则
-                  </h3>
-                  <p className="text-sm text-[#53657d] leading-relaxed whitespace-pre-wrap">{activity.ruleDesc}</p>
-                </div>
-              )}
+              <h1 style={{fontSize:"clamp(1.4rem,3vw,2rem)",fontWeight:800,color:"var(--yuu-text)"}}>{a.activityName}</h1>
             </div>
-          </LiquidGlassPanel>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-[#94a3b8]">
-            <p className="text-lg font-semibold">活动不存在</p>
+
+            <div className="grid gap-3 sm:grid-cols-2 mb-6">
+              {[{i:Tag,l:"类型",v:a.activityType},{i:Calendar,l:"开始时间",v:a.startTime?.slice(0,16)},{i:Clock,l:"结束时间",v:a.endTime?.slice(0,16)},{i:Clock,l:"最后更新",v:a.updateTime?.slice(0,16)||"-"}].map(({i:I,l,v})=>(
+                <div key={l} className="yuu-card flex items-center gap-3 px-4 py-3">
+                  <I className="h-4 w-4 flex-shrink-0" style={{color:"var(--yuu-accent)"}}/>
+                  <div className="min-w-0"><p className="text-[10px] uppercase tracking-wider" style={{color:"var(--yuu-muted)"}}>{l}</p><p className="text-sm font-semibold truncate" style={{color:"var(--yuu-text)"}}>{v||"未设置"}</p></div>
+                </div>
+              ))}
+            </div>
+
+            {a.ruleDesc && (
+              <div className="yuu-card p-5">
+                <h3 className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{color:"var(--yuu-text)"}}><ListChecks className="h-4 w-4" style={{color:"var(--yuu-accent)"}}/>活动规则</h3>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{color:"var(--yuu-muted)"}}>{a.ruleDesc}</p>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="flex flex-col items-center py-16" style={{color:"var(--yuu-muted)"}}><p className="text-sm">不存在</p></div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
