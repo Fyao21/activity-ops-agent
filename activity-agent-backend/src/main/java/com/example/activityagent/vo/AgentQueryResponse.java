@@ -9,10 +9,12 @@ import java.util.Map;
 @Data
 public class AgentQueryResponse {
     private String question;
+    private String routeType;
     @JsonAlias("generated_sql")
     private String generatedSql;
     @JsonAlias("query_result")
     private List<Map<String, Object>> queryResult;
+    private List<Map<String, Object>> retrievedChunks;
     private String answer;
     private Boolean success;
     @JsonAlias("error_message")

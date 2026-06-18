@@ -1,10 +1,20 @@
 import logging
 from functools import lru_cache
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from agent import ActivitySQLAgent
-from schemas import AgentQueryRequest, AgentQueryResponse
+from hybrid_service import HybridAgent
+from question_router import route_question
+from rag_service import RagService
+from schemas import (
+    AgentQueryRequest,
+    AgentQueryResponse,
+    RagIndexRequest,
+    RagIndexResponse,
+    RagQueryRequest,
+    RagQueryResponse,
+)
 from sql_guard import SQLGuardError
 
 
@@ -25,6 +35,16 @@ def get_agent() -> ActivitySQLAgent:
     return ActivitySQLAgent()
 
 
+@lru_cache
+def get_rag_service() -> RagService:
+    return RagService()
+
+
+@lru_cache
+def get_hybrid_agent() -> HybridAgent:
+    return HybridAgent(get_agent(), get_rag_service())
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -33,7 +53,26 @@ def health() -> dict[str, str]:
 @app.post("/agent/query", response_model=AgentQueryResponse)
 def query_agent(request: AgentQueryRequest) -> AgentQueryResponse:
     try:
-        result = get_agent().query(request.question, request.user_id)
+        route_type = route_question(request.question)
+        if route_type == "rag":
+            rag_result = get_rag_service().query(request.question, top_k=4)
+            result = {
+                "routeType": "rag",
+                "generatedSql": "",
+                "generated_sql": "",
+                "query_result": [],
+                "retrievedChunks": rag_result.get("retrieved_chunks", []),
+                "answer": rag_result.get("answer", ""),
+                "success": True,
+                "error_message": None,
+            }
+        elif route_type == "hybrid":
+            result = get_hybrid_agent().query(request.question, request.user_id)
+        else:
+            result = get_agent().query(request.question, request.user_id)
+            result["routeType"] = "sql"
+            result["generatedSql"] = result.get("generated_sql", "")
+            result["retrievedChunks"] = []
         return AgentQueryResponse(**result)
     except SQLGuardError as exc:
         logging.exception("SQL guard rejected query")
@@ -53,3 +92,29 @@ def query_agent(request: AgentQueryRequest) -> AgentQueryResponse:
             success=False,
             error_message=str(exc),
         )
+
+@app.post("/rag/index", response_model=RagIndexResponse)
+def index_rag_document(request: RagIndexRequest) -> RagIndexResponse:
+    try:
+        result = get_rag_service().index_document(
+            document_id=request.document_id,
+            file_path=request.file_path,
+            file_name=request.file_name,
+        )
+        return RagIndexResponse(**result)
+    except Exception as exc:
+        logging.exception("RAG index failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/rag/query", response_model=RagQueryResponse)
+def query_rag(request: RagQueryRequest) -> RagQueryResponse:
+    try:
+        result = get_rag_service().query(
+            question=request.question,
+            top_k=request.top_k,
+        )
+        return RagQueryResponse(**result)
+    except Exception as exc:
+        logging.exception("RAG query failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

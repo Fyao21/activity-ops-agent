@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 public class AgentProperties {
 
     private String pythonUrl;
+    private String ragIndexUrl;
+    private String ragQueryUrl;
     private Integer connectTimeoutMs = 5000;
     private Integer readTimeoutMs = 60000;
 }

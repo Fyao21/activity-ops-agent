@@ -49,6 +49,9 @@ public class AgentServiceImpl implements AgentService {
         if (response.getQueryResult() == null) {
             response.setQueryResult(Collections.emptyList());
         }
+        if (response.getRetrievedChunks() == null) {
+            response.setRetrievedChunks(Collections.emptyList());
+        }
         return response;
     }
 

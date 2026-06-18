@@ -1,0 +1,642 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Activity Agent RAG Apifox Test API",
+    "description": "Import this OpenAPI file into Apifox to test Python Agent routing, Python RAG, and Java knowledge APIs.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Python Agent service"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "SpringBoot backend service"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Python Agent Router"
+    },
+    {
+      "name": "Python RAG"
+    },
+    {
+      "name": "Java Knowledge"
+    }
+  ],
+  "paths": {
+    "/agent/query": {
+      "post": {
+        "tags": [
+          "Python Agent Router"
+        ],
+        "summary": "Route a question to SQL, RAG, or Hybrid",
+        "servers": [
+          {
+            "url": "http://localhost:8000"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentQueryRequest"
+              },
+              "examples": {
+                "SQL route": {
+                  "value": {
+                    "question": "\u7edf\u8ba1\u6700\u8fd1 7 \u5929\u5404\u6d3b\u52a8\u53c2\u4e0e\u4eba\u6570",
+                    "user_id": 1
+                  }
+                },
+                "RAG route": {
+                  "value": {
+                    "question": "618 \u6d3b\u52a8\u89c4\u5219\u662f\u4ec0\u4e48",
+                    "user_id": 1
+                  }
+                },
+                "Hybrid route": {
+                  "value": {
+                    "question": "\u6839\u636e 618 \u6d3b\u52a8\u89c4\u5219\uff0c\u5206\u6790\u6700\u8fd1 7 \u5929\u5956\u52b1\u53d1\u653e\u662f\u5426\u6b63\u5e38",
+                    "user_id": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentQueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag/index": {
+      "post": {
+        "tags": [
+          "Python RAG"
+        ],
+        "summary": "Index a document into FAISS",
+        "servers": [
+          {
+            "url": "http://localhost:8000"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagIndexRequest"
+              },
+              "example": {
+                "document_id": 1,
+                "file_path": "../docs/rag-sample-618.md",
+                "file_name": "rag-sample-618.md"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagIndexResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rag/query": {
+      "post": {
+        "tags": [
+          "Python RAG"
+        ],
+        "summary": "Query Python RAG directly",
+        "servers": [
+          {
+            "url": "http://localhost:8000"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagQueryRequest"
+              },
+              "example": {
+                "question": "618 \u52a0\u7801\u6d3b\u52a8\u7684\u65b0\u7528\u6237\u5956\u52b1\u89c4\u5219\u662f\u4ec0\u4e48\uff1f",
+                "top_k": 4
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagQueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/upload": {
+      "post": {
+        "tags": [
+          "Java Knowledge"
+        ],
+        "summary": "Upload a knowledge document",
+        "servers": [
+          {
+            "url": "http://localhost:8080"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultDocumentUploadResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/list": {
+      "get": {
+        "tags": [
+          "Java Knowledge"
+        ],
+        "summary": "List knowledge documents",
+        "servers": [
+          {
+            "url": "http://localhost:8080"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultKnowledgeDocumentPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/query": {
+      "post": {
+        "tags": [
+          "Java Knowledge"
+        ],
+        "summary": "Query knowledge base through Java backend",
+        "servers": [
+          {
+            "url": "http://localhost:8080"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeQueryRequest"
+              },
+              "example": {
+                "question": "618 \u52a0\u7801\u6d3b\u52a8\u7684\u65b0\u7528\u6237\u5956\u52b1\u89c4\u5219\u662f\u4ec0\u4e48\uff1f",
+                "topK": 4
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultKnowledgeQueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentQueryRequest": {
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "AgentQueryResponse": {
+        "type": "object",
+        "properties": {
+          "routeType": {
+            "type": "string",
+            "enum": [
+              "sql",
+              "rag",
+              "hybrid"
+            ]
+          },
+          "generatedSql": {
+            "type": "string"
+          },
+          "generated_sql": {
+            "type": "string"
+          },
+          "query_result": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "retrievedChunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PythonRetrievedChunk"
+            }
+          },
+          "answer": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "error_message": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RagIndexRequest": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "file_path",
+          "file_name"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          }
+        }
+      },
+      "RagIndexResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chunk_count": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PythonRetrievedChunk"
+            }
+          }
+        }
+      },
+      "RagQueryRequest": {
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "top_k": {
+            "type": "integer",
+            "default": 4
+          }
+        }
+      },
+      "RagQueryResponse": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "retrieved_chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PythonRetrievedChunk"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "KnowledgeQueryRequest": {
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "topK": {
+            "type": "integer",
+            "default": 4
+          }
+        }
+      },
+      "KnowledgeQueryResponse": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "retrievedChunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JavaRetrievedChunk"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DocumentUploadResponse": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "chunkCount": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "KnowledgeDocumentVO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "chunkCount": {
+            "type": "integer"
+          },
+          "createTime": {
+            "type": "string"
+          }
+        }
+      },
+      "PythonRetrievedChunk": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chunk_index": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "vector_id": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          }
+        }
+      },
+      "JavaRetrievedChunk": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chunkIndex": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "vectorId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          }
+        }
+      },
+      "ResultBase": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "nullable": true
+          }
+        }
+      },
+      "ResultDocumentUploadResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResultBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/DocumentUploadResponse"
+              }
+            }
+          }
+        ]
+      },
+      "ResultKnowledgeQueryResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResultBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/KnowledgeQueryResponse"
+              }
+            }
+          }
+        ]
+      },
+      "ResultKnowledgeDocumentPage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResultBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/KnowledgeDocumentPage"
+              }
+            }
+          }
+        ]
+      },
+      "KnowledgeDocumentPage": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeDocumentVO"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "current": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

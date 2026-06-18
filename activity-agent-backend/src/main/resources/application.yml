@@ -30,6 +30,8 @@ mybatis-plus:
 
 agent:
   python-url: http://localhost:8000/agent/query
+  rag-index-url: http://localhost:8000/rag/index
+  rag-query-url: http://localhost:8000/rag/query
   connect-timeout-ms: 5000
   read-timeout-ms: 60000
 
@@ -40,5 +42,7 @@ rocketmq:
 
 activity:
   mq:
+    rocketmq:
+      enabled: false
     redis-stream:
       enabled: false

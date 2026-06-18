@@ -90,3 +90,31 @@ CREATE TABLE IF NOT EXISTS agent_qa_record (
     KEY idx_user_time (user_id, create_time),
     CONSTRAINT fk_agent_qa_record_user FOREIGN KEY (user_id) REFERENCES sys_user (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent问答记录表';
+
+CREATE TABLE IF NOT EXISTS knowledge_document (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Document ID',
+    file_name VARCHAR(255) NOT NULL COMMENT 'Original file name',
+    file_type VARCHAR(32) NOT NULL COMMENT 'File type, such as txt/md/pdf',
+    file_path VARCHAR(512) NOT NULL COMMENT 'Saved file path',
+    status TINYINT NOT NULL DEFAULT 0 COMMENT 'Process status: 0 pending, 1 success, 2 failed',
+    chunk_count INT NOT NULL DEFAULT 0 COMMENT 'Chunk count',
+    error_message TEXT COMMENT 'Error message',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
+    KEY idx_status_create_time (status, create_time),
+    KEY idx_file_type (file_type),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Knowledge document metadata table';
+
+CREATE TABLE IF NOT EXISTS knowledge_chunk (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Chunk ID',
+    document_id BIGINT NOT NULL COMMENT 'Knowledge document ID',
+    chunk_index INT NOT NULL COMMENT 'Chunk index',
+    content TEXT NOT NULL COMMENT 'Chunk content',
+    vector_id VARCHAR(128) DEFAULT NULL COMMENT 'Vector store ID',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
+    UNIQUE KEY uk_document_chunk_index (document_id, chunk_index),
+    KEY idx_document_id (document_id),
+    KEY idx_vector_id (vector_id),
+    CONSTRAINT fk_knowledge_chunk_document FOREIGN KEY (document_id) REFERENCES knowledge_document (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Knowledge document chunk table';

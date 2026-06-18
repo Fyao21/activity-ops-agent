@@ -4,6 +4,7 @@ agent-service/.env
 
 # Python
 agent-service/.venv/
+agent-service/vector_store/
 .venv/
 venv/
 __pycache__/
@@ -14,5 +15,6 @@ __pycache__/
 *.iml
 
 # Java
+activity-agent-backend/uploads/
 target/
 *.class
