@@ -21,6 +21,7 @@ def resolve_document_path(file_path: str) -> Path:
                 Path.cwd() / raw_path,
                 service_dir / raw_path,
                 service_dir.parent / raw_path,
+                service_dir.parent / "activity-agent-backend" / raw_path,
             ]
         )
 

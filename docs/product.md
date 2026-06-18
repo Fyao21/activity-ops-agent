@@ -1,1166 +1,1154 @@
-# 活动运营数据分析 Agent 系统产品文档 / Codex 开发说明
+# 智能课程学习助手 Agent 平台产品文档
 
-## 1. 项目目标
+## 1. 项目定位
 
-请开发一个“活动运营数据分析 Agent 系统”。
+本项目是一个面向高校课程学习场景的智能课程学习助手平台，主要解决学生课程资料分散、知识点检索效率低、课后答疑依赖人工、教师难以及时掌握学生学习情况等问题。
 
-本项目用于模拟活动运营平台中的数据查询和智能分析场景。运营人员可以通过自然语言提问，例如：
+系统基于 SpringBoot 搭建后端业务服务，使用 Python + FastAPI + LangChain 构建 Agent 服务，结合 RAG 知识库问答、Text-to-SQL 学习数据分析、Hybrid Agent 混合分析、Redis 缓存、RocketMQ 异步任务等能力，实现课程管理、课程资料上传、知识库问答、学习数据统计、错题分析和个性化学习建议等功能。
 
-* 统计双十一活动的参与人数
-* 查询最近 7 天奖励发放数量
-* 分析某个活动的用户转化率
-* 对比两个活动的参与效果
-* 查询某个渠道带来的活动参与人数
-
-系统需要自动将用户问题转换为 SQL 查询，执行查询后返回结构化数据，并调用大模型生成自然语言分析结论。
-
-该项目用于 Java 后端实习简历展示，要求重点体现：
-
-* SpringBoot 后端开发能力
-* MySQL 表设计和 SQL 查询能力
-* Redis 缓存能力
-* 消息队列异步处理能力
-* Python + LangChain Agent 能力
-* Text-to-SQL 能力
-* SQL 安全控制能力
+项目适合作为 Java 后端实习 / AI 应用开发方向的工程化项目展示，重点体现后端业务开发、数据库设计、缓存、消息队列、RAG、Agent、LLM 应用工程化能力。
 
 ---
 
-## 2. 技术栈要求
+## 2. 应用场景
 
-### 2.1 Java 后端服务
+### 2.1 学生学习场景
 
-使用：
+学生可以查看课程资料、上传个人学习资料，并通过自然语言进行提问，例如：
+
+* Redis 缓存穿透是什么？
+* MySQL 索引为什么能提高查询效率？
+* JVM 垃圾回收机制有哪些？
+* 帮我总结一下 Redis Stream 和 RocketMQ 的区别。
+* 根据我的错题记录，帮我生成复习建议。
+
+系统会从课程知识库中检索相关资料片段，并调用大模型生成回答，减少学生查找资料和整理笔记的时间。
+
+### 2.2 教师教学辅助场景
+
+教师可以上传课程资料、维护课程知识库，并通过自然语言查询学习数据，例如：
+
+* 统计最近 7 天每门课程的提问次数。
+* 查询 Java 后端开发课程错题最多的知识点。
+* 统计 Redis 课程的平均正确率。
+* 对比不同课程的学习活跃度。
+* 查询最近一周答题错误最多的学生。
+
+系统会通过 Text-to-SQL 将自然语言问题转换为 SQL 查询，再由大模型总结查询结果，帮助教师掌握学生学习情况。
+
+### 2.3 教学运营分析场景
+
+管理员可以查看整体平台使用情况，例如：
+
+* 哪些课程访问量最高；
+* 哪些知识点被提问最多；
+* 哪些章节错题率最高；
+* 哪些学生学习活跃度下降；
+* 哪些课程资料需要补充。
+
+---
+
+## 3. 技术栈
+
+### 3.1 Java 后端
 
 * Java 17
-* SpringBoot 3.x
+* SpringBoot
 * SpringMVC
 * MyBatis / MyBatis-Plus
 * MySQL
 * Redis
-* Redis Stream 作为消息队列
-* RocketMQ 作为当前默认消息队列
+* RocketMQ
 * Maven
 * Lombok
+* Apifox
 
-Java 后端负责：
-
-* 用户登录
-* 活动管理
-* 用户参与记录
-* 奖励发放记录
-* 活动统计数据
-* 问答记录保存
-* Redis 缓存
-* Redis Stream 异步任务
-* RocketMQ 异步任务
-* 调用 Python Agent 服务
-
-### 2.2 Python Agent 服务
-
-使用：
+### 3.2 Python Agent 服务
 
 * Python 3.11+
 * FastAPI
 * LangChain
-* langchain-openai
-* langchain-community
+* FAISS
+* sentence-transformers / OpenAI Embedding
+* OpenAI 兼容大模型 API
 * SQLAlchemy
 * PyMySQL
-* Uvicorn
 
-Python 服务负责：
+### 3.3 存储与中间件
 
-* 接收 Java 后端传来的自然语言问题
-* 连接 MySQL 只读数据库
-* 获取数据库表结构
-* 使用 LangChain 构建 Text-to-SQL Agent
-* 生成 SQL
-* 校验 SQL
-* 执行 SQL 查询
-* 调用大模型总结查询结果
-* 返回 generated_sql、query_result、answer 给 Java 后端
-
-### 2.3 大模型
-
-使用 OpenAI 兼容接口即可，要求通过环境变量配置：
-
-```env
-OPENAI_API_KEY=你的API_KEY
-OPENAI_BASE_URL=你的模型服务地址
-MODEL_NAME=deepseek-chat 或 qwen-plus 或 gpt-4o-mini
-```
-
-如果暂时没有真实大模型，也要保留接口代码，允许后续替换。
+* MySQL：业务数据存储
+* Redis：登录态、热点课程信息、热点问答、Agent 会话上下文缓存
+* RocketMQ：学习行为、答题记录、文档索引等异步任务
+* FAISS：课程资料向量库，用于 RAG 检索
 
 ---
 
-## 3. 系统整体架构
+## 4. 系统架构
 
-系统分为两个服务：
+整体架构如下：
 
 ```text
 前端 / Apifox
    ↓
 SpringBoot 后端服务
+   ↓
+MySQL / Redis / RocketMQ
    ↓ HTTP 调用
 Python FastAPI Agent 服务
    ↓
-LangChain Text-to-SQL Agent
+LangChain / RAG / Text-to-SQL / Hybrid Agent
    ↓
-MySQL 数据库
+FAISS / MySQL / 大模型 API
 ```
 
-### 3.1 Java 后端职责
+### 4.1 SpringBoot 后端职责
 
-Java 后端提供统一业务接口，前端只访问 Java 后端，不直接访问 Python 服务。
+SpringBoot 后端负责：
 
-Java 后端接口示例：
+* 用户登录与权限控制；
+* 课程管理；
+* 课程资料上传；
+* 题目管理；
+* 答题与错题记录；
+* 学习行为记录；
+* Agent 问答记录保存；
+* Redis 缓存；
+* RocketMQ 消息发送与消费；
+* 调用 Python Agent 服务。
 
-```text
-POST /agent/query
-```
+### 4.2 Python Agent 服务职责
 
-Java 后端收到用户问题后，调用 Python Agent 服务：
+Python Agent 服务负责：
 
-```text
-POST http://localhost:8000/agent/query
-```
-
-然后将 Python 返回结果保存到问答记录表，并返回给前端。
-
-### 3.2 Python Agent 职责
-
-Python Agent 服务只负责智能查询与分析，不负责用户登录、权限、活动业务写入。
-
-Python 服务接口示例：
-
-```text
-POST /agent/query
-```
-
-请求参数：
-
-```json
-{
-  "question": "统计最近7天各活动的参与人数",
-  "user_id": 1
-}
-```
-
-返回参数：
-
-```json
-{
-  "generated_sql": "SELECT ...",
-  "query_result": [...],
-  "answer": "最近7天参与人数最高的活动是..."
-}
-```
+* 文档解析；
+* 文本切分；
+* Embedding 向量化；
+* FAISS 向量存储；
+* RAG 知识库问答；
+* Text-to-SQL 学习数据分析；
+* Hybrid 混合分析；
+* 大模型结果总结。
 
 ---
 
-## 4. 核心业务模块
+## 5. 核心功能模块
 
-## 4.1 用户登录模块
+## 5.1 用户模块
 
-### 功能说明
+系统支持三类角色：
 
-实现简单的用户登录功能，用于区分运营人员和管理员。
+### 学生
 
-### 功能要求
+* 查看课程；
+* 上传个人学习资料；
+* 基于课程资料提问；
+* 查看问答记录；
+* 提交答案；
+* 查询错题；
+* 获取复习建议。
 
-* 用户通过 username 和 password 登录
-* 登录成功后生成 token
-* token 存入 Redis
-* 后续请求通过 token 获取用户信息
-* 用户角色分为 ADMIN 和 OPERATOR
+### 教师
 
-### Redis Key 设计
+* 创建课程；
+* 上传课程资料；
+* 创建题目；
+* 查看学生提问数据；
+* 查询学习统计；
+* 分析章节薄弱点。
+
+### 管理员
+
+* 管理用户；
+* 管理课程；
+* 查看平台整体数据；
+* 管理知识库文档。
+
+### 登录态设计
+
+登录成功后生成 Token，并将用户信息存入 Redis。
+
+Redis Key：
 
 ```text
 login:token:{token}
 ```
 
-Value 保存：
+Value 示例：
 
 ```json
 {
   "userId": 1,
-  "username": "admin",
-  "role": "ADMIN"
+  "username": "student001",
+  "role": "STUDENT"
 }
 ```
 
 ---
 
-## 4.2 活动管理模块
+## 5.2 课程管理模块
 
 ### 功能说明
 
-用于维护活动基础信息。
+用于维护课程基础信息，例如课程名称、授课教师、课程描述、课程状态等。
 
-### 功能要求
-
-提供以下接口：
+### 核心接口
 
 ```text
-POST /activity/create
-GET /activity/list
-GET /activity/{id}
-PUT /activity/update
-```
-
-活动字段包括：
-
-* 活动名称
-* 活动类型
-* 开始时间
-* 结束时间
-* 活动状态
-* 活动规则描述
-
-### 缓存要求
-
-查询活动详情时，优先查 Redis。
-
-Redis Key：
-
-```text
-activity:info:{activityId}
-```
-
-缓存未命中时查 MySQL，并写入 Redis。
-
----
-
-## 4.3 用户参与记录模块
-
-### 功能说明
-
-记录用户参与活动的行为数据。
-
-### 功能要求
-
-提供接口：
-
-```text
-POST /activity/participate
-```
-
-请求示例：
-
-```json
-{
-  "activityId": 1,
-  "userId": 1001,
-  "channel": "APP"
-}
-```
-
-业务流程：
-
-1. 校验活动是否存在
-2. 校验活动是否正在进行
-3. 写入用户参与记录
-4. 原 Redis Stream 方案发送消息，用于异步更新统计数据；当前方案发送 RocketMQ `PARTICIPATE` 消息
-
-Redis Stream Key：
-
-```text
-stream:activity:event
-```
-
-消息内容：
-
-```json
-{
-  "eventType": "PARTICIPATE",
-  "activityId": 1,
-  "userId": 1001,
-  "channel": "APP",
-  "eventTime": "2026-06-08 12:00:00"
-}
-```
-
----
-
-## 4.4 奖励发放模块
-
-### 功能说明
-
-记录活动奖励发放情况。
-
-### 功能要求
-
-提供接口：
-
-```text
-POST /reward/send
-```
-
-请求示例：
-
-```json
-{
-  "activityId": 1,
-  "userId": 1001,
-  "rewardType": "COUPON",
-  "rewardAmount": 10
-}
-```
-
-业务流程：
-
-1. 校验活动和用户参与记录
-2. 创建奖励发放记录，状态为 INIT
-3. 原 Redis Stream 方案发送消息；当前方案发送 RocketMQ `REWARD` 消息
-4. 消费者异步处理奖励发放
-5. 发放成功后更新状态为 SUCCESS
-6. 发放失败后更新状态为 FAIL，并记录失败原因
-
-Redis Stream Key：
-
-```text
-stream:reward:event
-```
-
----
-
-## 4.5 活动统计模块
-
-### 功能说明
-
-用于保存和查询活动统计指标。
-
-### 核心指标
-
-* 活动参与人数
-* 奖励发放数量
-* 奖励发放成功率
-* 用户转化率
-* 渠道参与人数
-* 活动留存率
-
-### 功能要求
-
-提供接口：
-
-```text
-GET /statistics/activity
-```
-
-请求参数：
-
-```text
-activityId
-startDate
-endDate
+POST /course/create
+GET  /course/list
+GET  /course/{id}
+PUT  /course/update
 ```
 
 ### Redis 缓存设计
 
-统计数据 Redis Key：
+课程详情属于读多写少数据，查询课程详情时优先从 Redis 获取。
+
+Redis Key：
 
 ```text
-activity:stat:{activityId}:{date}
+course:info:{courseId}
 ```
 
-对于高频查询的活动统计数据，优先查 Redis，缓存不存在再查 MySQL。
+缓存策略：
+
+* 查询课程详情时先查 Redis；
+* Redis 未命中时查询 MySQL；
+* 查询成功后写入 Redis；
+* 更新课程信息后删除对应缓存；
+* 缓存过期时间设置为 30 分钟。
 
 ---
 
-## 4.6 智能问答 Agent 模块
+## 5.3 课程资料知识库模块
 
 ### 功能说明
 
-运营人员输入自然语言问题，系统自动查询数据库并生成分析结论。
+教师或学生可以上传课程资料，系统将资料切分后进行向量化，存入 FAISS，用于后续 RAG 检索。
 
-### Java 后端接口
+第一版支持：
+
+* txt
+* md
+
+后续可扩展：
+
+* pdf
+* docx
+* pptx
+
+### 核心接口
 
 ```text
-POST /agent/query
+POST /knowledge/upload
+GET  /knowledge/list
+POST /knowledge/query
 ```
 
-请求参数：
+### 文档上传流程
 
-```json
-{
-  "question": "统计最近7天各活动的参与人数和奖励发放数量"
-}
+```text
+用户上传课程资料
+   ↓
+SpringBoot 保存文件到 uploads/knowledge
+   ↓
+MySQL 保存 knowledge_document 记录，状态为待处理
+   ↓
+SpringBoot 发送 RocketMQ 文档索引消息
+   ↓
+RocketMQ 消费者调用 Python /rag/index
+   ↓
+Python 读取文档并切分
+   ↓
+Embedding 模型生成向量
+   ↓
+FAISS 保存向量
+   ↓
+Python 返回 chunk_count
+   ↓
+SpringBoot 更新文档状态为处理成功
 ```
 
-返回参数：
+### 文档状态
 
-```json
-{
-  "question": "统计最近7天各活动的参与人数和奖励发放数量",
-  "generatedSql": "SELECT ...",
-  "queryResult": "...",
-  "answer": "最近7天..."
-}
-```
+knowledge_document.status：
 
-### Java 后端处理流程
-
-1. 校验用户 token
-2. 接收自然语言问题
-3. 调用 Python FastAPI Agent 服务
-4. 获取 generated_sql、query_result、answer
-5. 保存问答记录到 agent_qa_record 表
-6. 返回结果给前端
-
-### Python Agent 处理流程
-
-1. 接收 question
-2. 获取数据库表列表
-3. 获取相关表结构
-4. 识别用户意图
-5. 生成 SQL
-6. 校验 SQL
-7. 执行 SQL 查询
-8. 生成自然语言总结
-9. 返回结果给 Java
-
----
-
-## 5. 数据库设计
-
-请使用 MySQL，数据库名：
-
-```sql
-CREATE DATABASE activity_agent DEFAULT CHARACTER SET utf8mb4;
+```text
+0：待处理
+1：处理成功
+2：处理失败
 ```
 
 ---
 
-## 5.1 用户表 sys_user
+## 5.4 RAG 知识库问答模块
+
+### 功能说明
+
+学生可以基于课程资料进行知识库问答。
+
+示例问题：
+
+```text
+Redis 缓存穿透是什么？
+MySQL 最左前缀原则是什么？
+JVM 内存结构包括哪些部分？
+帮我总结一下 Redis 复习资料中的重点。
+```
+
+### RAG 流程
+
+```text
+用户输入问题
+   ↓
+问题向量化
+   ↓
+FAISS 检索相关课程资料片段
+   ↓
+构造 Prompt
+   ↓
+调用大模型
+   ↓
+返回答案和引用片段
+```
+
+### RAG Prompt 约束
+
+```text
+你是一个课程学习知识库助手。
+你只能基于给定的课程资料上下文回答问题。
+如果上下文中没有答案，请回答“知识库中未找到相关信息”。
+不要编造课程资料中不存在的内容。
+回答要适合学生理解。
+如果涉及多个知识点，请分条说明。
+```
+
+---
+
+## 5.5 Text-to-SQL 学习数据分析模块
+
+### 功能说明
+
+教师或管理员可以通过自然语言查询学习数据，系统自动生成 SQL 并返回分析结论。
+
+示例问题：
+
+```text
+统计最近 7 天每门课程的提问次数。
+查询 Java 后端开发课程错题最多的知识点。
+统计 MySQL 数据库课程的平均正确率。
+对比不同课程的学习活跃度。
+查询最近一周答题错误最多的学生。
+```
+
+### 执行流程
+
+```text
+用户输入数据分析问题
+   ↓
+Agent 判断为 SQL 查询类问题
+   ↓
+读取数据库表结构
+   ↓
+生成 SQL
+   ↓
+SQL Guard 安全校验
+   ↓
+执行 SQL 查询
+   ↓
+大模型总结查询结果
+```
+
+### SQL Guard 安全要求
+
+必须保留 SQL 安全校验：
+
+* 只允许 SELECT；
+* 禁止 INSERT；
+* 禁止 UPDATE；
+* 禁止 DELETE；
+* 禁止 DROP；
+* 禁止 ALTER；
+* 禁止 TRUNCATE；
+* 禁止多语句执行；
+* 禁止查询 sys_user.password；
+* 查询结果默认限制 LIMIT 100。
+
+---
+
+## 5.6 Hybrid Agent 混合分析模块
+
+### 功能说明
+
+有些问题既需要查询课程资料，又需要查询学习数据，例如：
+
+```text
+根据 Redis 复习资料，分析最近一周学生错题集中在哪些知识点。
+结合 JVM 课程资料，分析学生目前掌握较差的部分。
+根据 MySQL 索引章节内容，给错题较多的学生生成复习建议。
+```
+
+这类问题需要同时使用：
+
+* RAG 检索课程资料；
+* Text-to-SQL 查询学习数据；
+* 大模型综合分析。
+
+### Hybrid 流程
+
+```text
+用户输入问题
+   ↓
+问题路由判断为 HYBRID
+   ↓
+RAG 检索相关课程资料
+   ↓
+Text-to-SQL 查询学习数据
+   ↓
+构造综合分析 Prompt
+   ↓
+大模型生成分析结论和学习建议
+```
+
+### Hybrid 输出内容
+
+回答内容包括：
+
+1. 相关知识点摘要；
+2. 学习数据摘要；
+3. 薄弱点分析；
+4. 复习建议。
+
+---
+
+## 5.7 学习行为记录模块
+
+### 功能说明
+
+系统记录学生的学习行为，用于后续数据分析。
+
+学习行为包括：
+
+* 查看课程；
+* 提问；
+* 查看答案；
+* 提交题目；
+* 收藏知识点；
+* 上传资料。
+
+### RocketMQ 异步处理流程
+
+用户产生学习行为后，主流程只发送消息到 RocketMQ，不直接阻塞写统计数据。
+
+```text
+用户触发学习行为
+   ↓
+SpringBoot 发送 RocketMQ 消息
+   ↓
+RocketMQ Broker
+   ↓
+LearningEventConsumer 消费消息
+   ↓
+写入 learning_event 表
+   ↓
+更新课程学习统计
+```
+
+### Topic 设计
+
+```text
+Topic：edu_learning_event_topic
+ConsumerGroup：edu_learning_event_consumer_group
+```
+
+### Tag 设计
+
+```text
+QUESTION：学生提问
+ANSWER：学生答题
+VIEW_COURSE：查看课程
+UPLOAD_DOC：上传资料
+```
+
+---
+
+## 5.8 题目、答题与错题模块
+
+### 功能说明
+
+教师可以创建题目，学生可以提交答案。系统判断正误后保存答题记录，并支持查询错题。
+
+### 核心接口
+
+```text
+POST /question/create
+GET  /question/list
+POST /answer/submit
+GET  /answer/wrong/list
+```
+
+### 答题流程
+
+```text
+学生提交答案
+   ↓
+SpringBoot 查询题目正确答案
+   ↓
+判断是否正确
+   ↓
+保存 answer_record
+   ↓
+发送 RocketMQ 学习行为消息，Tag=ANSWER
+   ↓
+返回答题结果和解析
+```
+
+---
+
+## 5.9 RocketMQ 异步任务模块
+
+本项目使用 RocketMQ 替代 Redis Stream 作为消息队列，主要用于业务解耦、流量削峰和异步处理。
+
+### 主要异步场景
+
+1. 学习行为异步记录；
+2. 文档索引异步处理；
+3. 答题后统计数据异步更新；
+4. Agent 问答记录异步保存，后续可扩展。
+
+### Topic 设计
+
+#### 1. 学习行为 Topic
+
+```text
+Topic：edu_learning_event_topic
+Producer：LearningEventProducer
+Consumer：LearningEventConsumer
+ConsumerGroup：edu_learning_event_consumer_group
+```
+
+消息体示例：
+
+```json
+{
+  "userId": 1,
+  "courseId": 1,
+  "eventType": "QUESTION",
+  "eventTime": "2026-06-18 12:00:00"
+}
+```
+
+#### 2. 文档索引 Topic
+
+```text
+Topic：edu_knowledge_index_topic
+Producer：KnowledgeIndexProducer
+Consumer：KnowledgeIndexConsumer
+ConsumerGroup：edu_knowledge_index_consumer_group
+```
+
+消息体示例：
+
+```json
+{
+  "documentId": 1,
+  "courseId": 1,
+  "filePath": "uploads/knowledge/redis.md",
+  "fileName": "Redis复习资料.md"
+}
+```
+
+#### 3. 答题统计 Topic
+
+```text
+Topic：edu_answer_stat_topic
+Producer：AnswerStatProducer
+Consumer：AnswerStatConsumer
+ConsumerGroup：edu_answer_stat_consumer_group
+```
+
+消息体示例：
+
+```json
+{
+  "userId": 1,
+  "courseId": 1,
+  "questionId": 1,
+  "knowledgePoint": "Redis缓存穿透",
+  "correct": false,
+  "answerTime": "2026-06-18 12:00:00"
+}
+```
+
+### RocketMQ 消费要求
+
+1. 消费成功后正常返回，完成 ACK；
+2. 消费失败时记录错误日志并抛出异常，让 RocketMQ 后续重试；
+3. 消费者逻辑要考虑幂等，避免重复消费导致统计重复增加；
+4. 对于文档索引任务，重复消费时需要判断 knowledge_document 状态；
+5. 对于学习行为任务，可以通过业务唯一键或消息唯一 ID 控制重复写入；
+6. 对于答题统计任务，可基于 answer_record.id 做幂等判断。
+
+---
+
+## 6. 数据库设计
+
+## 6.1 用户表 sys_user
 
 ```sql
 CREATE TABLE sys_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
     username VARCHAR(64) NOT NULL COMMENT '用户名',
     password VARCHAR(128) NOT NULL COMMENT '密码',
-    role VARCHAR(32) NOT NULL COMMENT '角色 ADMIN/OPERATOR',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-```
-
----
-
-## 5.2 活动表 activity
-
-```sql
-CREATE TABLE activity (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '活动ID',
-    activity_name VARCHAR(128) NOT NULL COMMENT '活动名称',
-    activity_type VARCHAR(64) NOT NULL COMMENT '活动类型',
-    start_time DATETIME NOT NULL COMMENT '开始时间',
-    end_time DATETIME NOT NULL COMMENT '结束时间',
-    status TINYINT NOT NULL COMMENT '状态 0未开始 1进行中 2已结束',
-    rule_desc TEXT COMMENT '活动规则描述',
+    role VARCHAR(32) NOT NULL COMMENT '角色 STUDENT/TEACHER/ADMIN',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_status_time(status, start_time, end_time)
-);
+    UNIQUE KEY uk_username(username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 ```
 
----
-
-## 5.3 用户参与记录表 activity_user_record
+## 6.2 课程表 course
 
 ```sql
-CREATE TABLE activity_user_record (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '记录ID',
-    activity_id BIGINT NOT NULL COMMENT '活动ID',
-    user_id BIGINT NOT NULL COMMENT '用户ID',
-    channel VARCHAR(64) NOT NULL COMMENT '参与渠道 APP/H5/WEB',
-    participate_status TINYINT NOT NULL COMMENT '参与状态 1成功 0失败',
-    participate_time DATETIME NOT NULL COMMENT '参与时间',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_activity_time(activity_id, participate_time),
-    INDEX idx_user_activity(user_id, activity_id),
-    INDEX idx_channel(channel)
-);
-```
-
----
-
-## 5.4 奖励发放记录表 reward_record
-
-```sql
-CREATE TABLE reward_record (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '奖励记录ID',
-    activity_id BIGINT NOT NULL COMMENT '活动ID',
-    user_id BIGINT NOT NULL COMMENT '用户ID',
-    reward_type VARCHAR(64) NOT NULL COMMENT '奖励类型 COUPON/POINT/CASH',
-    reward_amount DECIMAL(10,2) NOT NULL COMMENT '奖励数量',
-    send_status TINYINT NOT NULL COMMENT '发放状态 0初始化 1成功 2失败',
-    fail_reason VARCHAR(255) DEFAULT NULL COMMENT '失败原因',
-    send_time DATETIME DEFAULT NULL COMMENT '发放时间',
+CREATE TABLE course (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
+    course_name VARCHAR(128) NOT NULL COMMENT '课程名称',
+    teacher_id BIGINT NOT NULL COMMENT '教师ID',
+    description TEXT COMMENT '课程描述',
+    status TINYINT DEFAULT 1 COMMENT '状态 1启用 0禁用',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_activity_status(activity_id, send_status),
-    INDEX idx_user_activity(user_id, activity_id),
-    INDEX idx_send_time(send_time)
-);
+    INDEX idx_teacher(teacher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程表';
 ```
 
----
-
-## 5.5 活动统计表 activity_statistics
+## 6.3 知识库文档表 knowledge_document
 
 ```sql
-CREATE TABLE activity_statistics (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '统计ID',
-    activity_id BIGINT NOT NULL COMMENT '活动ID',
-    stat_date DATE NOT NULL COMMENT '统计日期',
-    participant_count INT DEFAULT 0 COMMENT '参与人数',
-    reward_count INT DEFAULT 0 COMMENT '奖励发放数量',
-    reward_success_count INT DEFAULT 0 COMMENT '奖励发放成功数量',
-    conversion_rate DECIMAL(6,4) DEFAULT 0 COMMENT '转化率',
-    retention_rate DECIMAL(6,4) DEFAULT 0 COMMENT '留存率',
+CREATE TABLE knowledge_document (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '文档ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    file_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    file_type VARCHAR(32) NOT NULL COMMENT '文件类型',
+    file_path VARCHAR(500) NOT NULL COMMENT '文件路径',
+    status TINYINT DEFAULT 0 COMMENT '处理状态 0待处理 1成功 2失败',
+    chunk_count INT DEFAULT 0 COMMENT '切片数量',
+    error_message TEXT COMMENT '错误信息',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_activity_date(activity_id, stat_date)
-);
+    INDEX idx_course(course_id),
+    INDEX idx_status(status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档表';
 ```
 
----
+## 6.4 知识库切片表 knowledge_chunk
 
-## 5.6 Agent 问答记录表 agent_qa_record
+```sql
+CREATE TABLE knowledge_chunk (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '片段ID',
+    document_id BIGINT NOT NULL COMMENT '文档ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    chunk_index INT NOT NULL COMMENT '片段序号',
+    content TEXT NOT NULL COMMENT '片段内容',
+    vector_id VARCHAR(128) COMMENT '向量库ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_document(document_id),
+    INDEX idx_course(course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库切片表';
+```
+
+## 6.5 Agent 问答记录表 agent_qa_record
 
 ```sql
 CREATE TABLE agent_qa_record (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '记录ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',
+    course_id BIGINT DEFAULT NULL COMMENT '课程ID',
     question TEXT NOT NULL COMMENT '用户问题',
-    generated_sql TEXT COMMENT '生成的SQL',
-    query_result TEXT COMMENT 'SQL查询结果',
+    route_type VARCHAR(32) COMMENT '路由类型 SQL/RAG/HYBRID',
+    generated_sql TEXT COMMENT '生成SQL',
+    retrieved_context TEXT COMMENT '检索上下文',
     answer TEXT COMMENT '最终回答',
-    success TINYINT DEFAULT 1 COMMENT '是否成功 1成功 0失败',
+    success TINYINT DEFAULT 1 COMMENT '是否成功',
     error_message TEXT COMMENT '错误信息',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_time(user_id, create_time)
-);
+    INDEX idx_user_time(user_id, create_time),
+    INDEX idx_course(course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent问答记录表';
+```
+
+## 6.6 学习行为记录表 learning_event
+
+```sql
+CREATE TABLE learning_event (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '事件ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    event_type VARCHAR(64) NOT NULL COMMENT '行为类型',
+    event_time DATETIME NOT NULL COMMENT '行为时间',
+    message_key VARCHAR(128) DEFAULT NULL COMMENT 'RocketMQ消息唯一键，用于幂等',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_message_key(message_key),
+    INDEX idx_user_course(user_id, course_id),
+    INDEX idx_course_time(course_id, event_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学习行为记录表';
+```
+
+## 6.7 题目表 question
+
+```sql
+CREATE TABLE question (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '题目ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    knowledge_point VARCHAR(128) COMMENT '知识点',
+    question_content TEXT NOT NULL COMMENT '题目内容',
+    answer VARCHAR(255) NOT NULL COMMENT '正确答案',
+    analysis TEXT COMMENT '解析',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_course(course_id),
+    INDEX idx_knowledge_point(knowledge_point)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题目表';
+```
+
+## 6.8 学生答题记录表 answer_record
+
+```sql
+CREATE TABLE answer_record (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '答题记录ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    question_id BIGINT NOT NULL COMMENT '题目ID',
+    user_answer VARCHAR(255) COMMENT '用户答案',
+    correct TINYINT NOT NULL COMMENT '是否正确 1正确 0错误',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_course(user_id, course_id),
+    INDEX idx_question(question_id),
+    INDEX idx_correct(correct)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='答题记录表';
 ```
 
 ---
 
-## 6. Python Agent 服务要求
+## 7. Redis 设计
 
-### 6.1 项目结构
+本项目中 Redis 主要用于缓存，不再作为消息队列使用。
 
-请创建 Python 服务目录：
+### 7.1 登录态缓存
+
+```text
+login:token:{token}
+```
+
+### 7.2 课程详情缓存
+
+```text
+course:info:{courseId}
+```
+
+### 7.3 Agent 会话上下文缓存
+
+```text
+agent:session:{userId}:{courseId}
+```
+
+### 7.4 热点问答缓存
+
+```text
+agent:qa:cache:{questionHash}
+```
+
+### 7.5 热点课程统计缓存
+
+```text
+course:stat:{courseId}
+```
+
+---
+
+## 8. Python Agent 服务设计
+
+Python 服务目录建议：
 
 ```text
 agent-service/
 ├── main.py
 ├── agent.py
-├── db.py
-├── schemas.py
+├── sql_agent.py
+├── rag_service.py
+├── router.py
+├── vector_store.py
+├── document_loader.py
 ├── sql_guard.py
+├── schemas.py
 ├── requirements.txt
 ├── .env.example
-└── README.md
+└── vector_store/
 ```
 
-### 6.2 FastAPI 接口
-
-接口路径：
-
-```text
-POST /agent/query
-```
-
-请求模型：
-
-```python
-class AgentQueryRequest(BaseModel):
-    question: str
-    user_id: Optional[int] = None
-```
-
-返回模型：
-
-```python
-class AgentQueryResponse(BaseModel):
-    generated_sql: str
-    query_result: Any
-    answer: str
-    success: bool
-    error_message: Optional[str] = None
-```
-
-### 6.3 SQL 安全控制
-
-必须实现 sql_guard.py，对模型生成的 SQL 做安全校验。
-
-要求：
-
-* 只允许 SELECT
-* 禁止 INSERT
-* 禁止 UPDATE
-* 禁止 DELETE
-* 禁止 DROP
-* 禁止 ALTER
-* 禁止 TRUNCATE
-* 禁止 CREATE
-* 禁止多语句执行
-* 禁止查询 sys_user.password
-* 限制最大返回行数，例如自动追加 LIMIT 100
-
-示例函数：
-
-```python
-def validate_sql(sql: str) -> bool:
-    pass
-```
-
-### 6.4 Agent Prompt 要求
-
-System Prompt 需要包含以下约束：
-
-```text
-你是一个活动运营数据分析 Agent。
-你只能生成 SELECT 查询语句。
-你不能生成 INSERT、UPDATE、DELETE、DROP、ALTER、TRUNCATE 等 SQL。
-回答必须基于 SQL 查询结果，不能编造不存在的数据。
-执行 SQL 前必须检查表结构。
-如果 SQL 执行失败，需要根据错误信息修正 SQL。
-如果用户问题和活动数据无关，需要拒绝回答。
-返回结果需要包含：生成的 SQL、查询结果摘要、自然语言分析结论。
-```
-
-### 6.5 Python 环境变量
-
-`.env.example`：
+### 环境变量
 
 ```env
 OPENAI_API_KEY=your_api_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+OPENAI_BASE_URL=https://api.openai-proxy.org/v1
+MODEL_NAME=deepseek-v4-flash
+
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
+VECTOR_STORE_PATH=./vector_store
 
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
-MYSQL_USER=agent_readonly
-MYSQL_PASSWORD=123456
-MYSQL_DATABASE=activity_agent
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=edu_agent
 ```
 
----
+### Python 接口
 
-## 7. Java 后端项目要求
-
-### 7.1 项目结构
-
-请创建 SpringBoot 项目：
+#### 文档索引接口
 
 ```text
-activity-agent-backend/
-├── src/main/java/com/example/activityagent
-│   ├── controller
-│   ├── service
-│   ├── service/impl
-│   ├── mapper
-│   ├── entity
-│   ├── dto
-│   ├── vo
-│   ├── config
-│   ├── common
-│   ├── mq
-│   └── client
-├── src/main/resources
-│   ├── application.yml
-│   └── mapper
-└── pom.xml
+POST /rag/index
 ```
 
-### 7.2 必须实现的 Controller
+请求示例：
+
+```json
+{
+  "document_id": 1,
+  "course_id": 1,
+  "file_path": "uploads/knowledge/redis.md",
+  "file_name": "Redis复习资料.md"
+}
+```
+
+#### RAG 查询接口
 
 ```text
-AuthController
-ActivityController
-ParticipateController
-RewardController
-StatisticsController
-AgentController
+POST /rag/query
 ```
 
----
+请求示例：
 
-## 7.3 Java 调 Python 服务
-
-请创建：
-
-```text
-client/PythonAgentClient.java
+```json
+{
+  "course_id": 1,
+  "question": "Redis 缓存穿透是什么？",
+  "top_k": 4
+}
 ```
 
-功能：
-
-* 使用 RestTemplate 或 WebClient 调用 Python FastAPI 服务
-* 请求地址从 application.yml 读取
-* 设置超时时间
-* 捕获异常并返回友好错误
-
-application.yml 示例：
-
-```yaml
-agent:
-  python-url: http://localhost:8000/agent/query
-```
-
----
-
-## 7.4 AgentController
-
-接口：
+#### 混合 Agent 查询接口
 
 ```text
 POST /agent/query
 ```
 
-功能：
+请求示例：
 
-1. 接收用户 question
-2. 调用 PythonAgentClient
-3. 保存问答记录
-4. 返回 answer、generatedSql、queryResult
+```json
+{
+  "user_id": 1,
+  "course_id": 1,
+  "question": "根据 Redis 复习资料，分析最近一周学生错题集中在哪些知识点。"
+}
+```
 
 ---
 
-## 8. Redis Stream 异步任务要求
+## 9. 问题路由设计
 
-### 8.1 活动参与事件
+Agent 接收到问题后，先判断问题类型。
 
-Stream Key：
+### SQL 类问题
 
-```text
-stream:activity:event
-```
+适合查询数据库统计数据。
 
-消费者组：
+关键词：
 
 ```text
-group:activity:stat
+统计、数量、人数、正确率、错题数、排名、对比、最近、今天、昨天、本周、平均、活跃度
 ```
 
-消费者逻辑：
-
-* 消费用户参与事件
-* 更新 activity_statistics.participant_count
-* 更新 Redis 统计缓存
-* 消费成功后 ack
-* 消费失败记录日志，不 ack，允许后续重试
-
-### 8.2 奖励发放事件
-
-Stream Key：
+返回：
 
 ```text
-stream:reward:event
+sql
 ```
 
-消费者组：
+### RAG 类问题
+
+适合查询课程资料、知识点解释、FAQ。
+
+关键词：
 
 ```text
-group:reward:send
+什么是、解释、原理、规则、说明、知识点、总结、复习、资料、文档、为什么、如何
 ```
 
-消费者逻辑：
-
-* 消费奖励发放事件
-* 模拟奖励发放
-* 更新 reward_record.send_status
-* 更新 reward_record.send_time
-* 更新 activity_statistics.reward_count 和 reward_success_count
-* 消费成功后 ack
-* 消费失败记录日志，不 ack，允许后续重试
-
-### 8.3 RocketMQ 当前实现
-
-Redis Stream 需求和代码继续保留，当前默认消息链路已补充为 RocketMQ。
-
-Topic：
+返回：
 
 ```text
-agent-task-topic
+rag
 ```
 
-Tag：
+### Hybrid 类问题
+
+适合结合资料和数据综合分析。
+
+关键词：
 
 ```text
-PARTICIPATE
-REWARD
+结合、根据、分析、建议、薄弱点、是否正常、原因、复习计划、掌握情况
 ```
 
-消费组：
+返回：
 
 ```text
-agent-task-consumer-group
+hybrid
 ```
-
-生产组：
-
-```text
-agent-task-producer-group
-```
-
-处理要求：
-
-* `PARTICIPATE` 消息用于刷新参与统计
-* `REWARD` 消息用于更新奖励状态和奖励统计
-* 消费成功由监听方法正常返回确认
-* 消费失败通过抛出异常触发 RocketMQ 重试
-* 超过重试次数后进入死信队列
-* 参与统计通过源表重算保证幂等
-* 奖励任务通过 `reward_record.send_status` 保证幂等
-* Redis Stream 通过 `activity.mq.redis-stream.enabled` 开关控制，默认关闭
-* 保留 Redis Stream 源码作为历史方案和回滚参考
 
 ---
 
-## 9. 接口清单
+## 10. 核心接口设计
 
-### 9.1 登录接口
+### 用户登录
 
 ```text
 POST /auth/login
 ```
 
-请求：
-
-```json
-{
-  "username": "admin",
-  "password": "123456"
-}
-```
-
-返回：
-
-```json
-{
-  "token": "xxx"
-}
-```
-
----
-
-### 9.2 创建活动
+### 创建课程
 
 ```text
-POST /activity/create
+POST /course/create
 ```
 
-请求：
-
-```json
-{
-  "activityName": "双十一拉新活动",
-  "activityType": "NEW_USER",
-  "startTime": "2026-06-01 00:00:00",
-  "endTime": "2026-06-30 23:59:59",
-  "status": 1,
-  "ruleDesc": "新用户参与后发放优惠券"
-}
-```
-
----
-
-### 9.3 活动列表
+### 查询课程列表
 
 ```text
-GET /activity/list?page=1&pageSize=10
+GET /course/list
 ```
 
----
-
-### 9.4 活动详情
+### 查询课程详情
 
 ```text
-GET /activity/{id}
+GET /course/{id}
 ```
 
----
-
-### 9.5 用户参与活动
+### 上传课程资料
 
 ```text
-POST /activity/participate
+POST /knowledge/upload
 ```
 
-请求：
-
-```json
-{
-  "activityId": 1,
-  "userId": 1001,
-  "channel": "APP"
-}
-```
-
----
-
-### 9.6 奖励发放
+### 查询课程资料列表
 
 ```text
-POST /reward/send
+GET /knowledge/list
 ```
 
-请求：
-
-```json
-{
-  "activityId": 1,
-  "userId": 1001,
-  "rewardType": "COUPON",
-  "rewardAmount": 10
-}
-```
-
----
-
-### 9.7 活动统计查询
+### RAG 问答
 
 ```text
-GET /statistics/activity?activityId=1&startDate=2026-06-01&endDate=2026-06-30
+POST /knowledge/query
 ```
 
----
-
-### 9.8 Agent 自然语言查询
+### Agent 混合问答
 
 ```text
 POST /agent/query
 ```
 
-请求：
-
-```json
-{
-  "question": "统计最近7天各活动的参与人数和奖励发放数量"
-}
-```
-
-返回：
-
-```json
-{
-  "question": "统计最近7天各活动的参与人数和奖励发放数量",
-  "generatedSql": "SELECT ...",
-  "queryResult": "...",
-  "answer": "最近7天共有3个活动产生参与数据，其中双十一拉新活动参与人数最高..."
-}
-```
-
----
-
-## 10. 初始化数据要求
-
-请提供 `init.sql`，插入以下测试数据：
-
-* 2 个用户：admin、operator
-* 5 个活动
-* 每个活动 20 条用户参与记录
-* 每个活动 10 条奖励发放记录
-* 每个活动 3 条统计数据
-* 若干问答记录
-
-要求数据能支持以下问题查询：
+### 创建题目
 
 ```text
-统计最近7天各活动的参与人数
-查询双十一活动奖励发放成功率
-对比 APP 和 H5 渠道的参与人数
-查询奖励发放失败最多的活动
-分析某活动的转化率
+POST /question/create
+```
+
+### 查询题目列表
+
+```text
+GET /question/list
+```
+
+### 提交答案
+
+```text
+POST /answer/submit
+```
+
+### 查询错题
+
+```text
+GET /answer/wrong/list
+```
+
+### 提交学习行为
+
+```text
+POST /learning/event
 ```
 
 ---
 
-## 11. 统一返回格式
+## 11. RocketMQ 配置设计
 
-Java 后端统一返回：
+application.yml 示例：
 
-```json
-{
-  "code": 1,
-  "message": "success",
-  "data": {}
+```yaml
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: edu-agent-producer-group
+```
+
+建议常量类：
+
+```java
+public class RocketMqConstant {
+    public static final String LEARNING_EVENT_TOPIC = "edu_learning_event_topic";
+    public static final String KNOWLEDGE_INDEX_TOPIC = "edu_knowledge_index_topic";
+    public static final String ANSWER_STAT_TOPIC = "edu_answer_stat_topic";
+
+    public static final String TAG_QUESTION = "QUESTION";
+    public static final String TAG_ANSWER = "ANSWER";
+    public static final String TAG_VIEW_COURSE = "VIEW_COURSE";
+    public static final String TAG_UPLOAD_DOC = "UPLOAD_DOC";
+    public static final String TAG_DOC_INDEX = "DOC_INDEX";
 }
 ```
 
-失败返回：
+### 生产者设计
 
-```json
-{
-  "code": 0,
-  "message": "错误信息",
-  "data": null
-}
-```
+* LearningEventProducer：发送学习行为消息；
+* KnowledgeIndexProducer：发送文档索引消息；
+* AnswerStatProducer：发送答题统计消息。
 
----
+### 消费者设计
 
-## 12. 非功能要求
+* LearningEventConsumer：消费学习行为消息，写入 learning_event 表；
+* KnowledgeIndexConsumer：消费文档索引消息，调用 Python /rag/index，更新文档状态；
+* AnswerStatConsumer：消费答题统计消息，后续可扩展更新课程统计或知识点统计。
 
-### 12.1 可运行
+### 消费失败处理
 
-项目必须能本地运行。
-
-启动顺序：
-
-1. 启动 MySQL
-2. 启动 Redis
-3. 执行 init.sql
-4. 启动 Python FastAPI Agent 服务
-5. 启动 SpringBoot 后端服务
-6. 使用 Apifox 调用接口测试
-
-### 12.2 可演示
-
-必须能演示以下流程：
-
-1. 登录获取 token
-2. 创建活动
-3. 用户参与活动
-4. 发送奖励
-5. Redis Stream 异步更新统计数据
-6. 调用自然语言查询接口
-7. 返回 SQL 和分析结论
-8. 查看问答记录
-
-### 12.3 安全要求
-
-* Agent 查询数据库账号建议使用只读账号
-* Python Agent 必须做 SQL 关键字校验
-* Java 后端也要保存 generated_sql，方便排查问题
-* 禁止 Agent 查询用户密码字段
-* Agent 回答必须基于查询结果，不允许编造数据
-
-### 12.4 日志要求
-
-需要打印关键日志：
-
-* 用户登录日志
-* 活动参与日志
-* Redis Stream 发送消息日志
-* Redis Stream 消费消息日志
-* Python Agent 生成 SQL 日志
-* SQL 校验失败日志
-* Agent 查询失败日志
+1. 消费成功：正常返回，RocketMQ 认为消息消费成功；
+2. 消费失败：记录错误日志并抛出异常，让 RocketMQ 自动重试；
+3. 多次失败：后续可接入死信队列；
+4. 幂等控制：通过 messageKey、documentId、answerRecordId 等业务唯一标识避免重复处理。
 
 ---
 
-## 13. README 要求
+## 12. 工程化亮点
 
-请生成完整 README，包含：
+### 12.1 Java 与 Python 服务解耦
 
-1. 项目介绍
-2. 技术栈
-3. 系统架构
-4. 数据库表说明
-5. 启动方式
-6. 环境变量配置
-7. 接口列表
-8. Agent 查询示例
-9. Redis Stream 异步流程说明
-10. 常见问题
+SpringBoot 负责业务系统，Python 负责 AI 能力，二者通过 HTTP 接口通信，便于独立开发、部署和扩展。
 
----
+### 12.2 RAG 降低大模型幻觉
 
-## 14. Codex 开发优先级
+系统不会直接让大模型凭空回答，而是先从课程知识库中检索相关资料片段，再让模型基于上下文回答。
 
-请按照以下优先级开发。
+### 12.3 Text-to-SQL 提升教学数据查询效率
 
-### P0：必须完成
+教师可以用自然语言查询学习数据，降低 SQL 使用门槛。
 
-* MySQL 表结构和初始化数据
-* SpringBoot 基础项目
-* 活动管理
-* 用户参与记录
-* 奖励发放记录
-* 活动统计查询
-* Python FastAPI Agent 服务
-* Java 调 Python 接口
-* Agent 查询记录保存
-* SQL 安全校验
+### 12.4 Hybrid Agent 支持综合分析
 
-### P1：尽量完成
+系统可以同时结合课程资料和学习数据，生成更有价值的学习建议。
 
-* Redis 缓存活动详情
-* Redis 缓存统计数据
-* Redis Stream 异步处理参与事件和奖励事件（保留方案）
-* RocketMQ 异步处理参与事件和奖励事件（当前默认方案）
-* 消费失败重试
-* 问答历史查询
+### 12.5 Redis 提升访问性能
 
-### P2：可选完成
+使用 Redis 缓存登录态、课程信息、热点问答和 Agent 会话上下文。
 
-* LangSmith 追踪配置
-* 简单前端页面
-* Docker Compose
-* RocketMQ 替代 Redis Stream（已完成，Redis Stream 代码继续保留）
-* 多轮上下文记忆
+### 12.6 RocketMQ 实现异步解耦
+
+学习行为记录、文档索引、答题统计等任务通过 RocketMQ 异步处理，降低主流程耗时，并提升系统在高并发场景下的稳定性。
+
+### 12.7 SQL Guard 控制数据安全
+
+模型生成的 SQL 必须经过安全校验，只允许 SELECT，避免误操作业务数据。
+
+### 12.8 本地 Embedding 降低部署成本
+
+开发阶段可以使用本地 Embedding 模型生成向量，避免依赖外部 embedding API。
 
 ---
 
-## 15. 验收标准
+## 13. 项目难点与解决方案
 
-项目完成后，必须满足以下条件：
+### 13.1 文档问答容易出现幻觉
 
-1. SpringBoot 服务可以正常启动。
-2. Python FastAPI 服务可以正常启动。
-3. Java 后端可以通过 HTTP 调用 Python Agent 服务。
-4. MySQL 初始化数据完整。
-5. Redis 缓存功能可用。
-6. Redis Stream 可以发送和消费消息。
-7. RocketMQ 可以发送和消费 `PARTICIPATE`、`REWARD` 消息。
-8. 调用 `/agent/query` 可以输入自然语言问题。
-9. Agent 可以生成 SQL。
-10. Agent 可以执行 SQL 并返回查询结果。
-11. Agent 可以返回自然语言分析结论。
-12. 禁止执行 DELETE、UPDATE、INSERT、DROP 等危险 SQL。
-13. 问答记录可以保存到 MySQL。
-14. README 中有完整启动说明。
+解决方案：
 
----
+使用 RAG，将检索到的课程资料片段放入 Prompt，并要求模型只能基于上下文回答。
 
-## 16. 示例演示问题
+### 13.2 模型生成 SQL 有安全风险
 
-请确保系统支持以下自然语言问题：
+解决方案：
 
-```text
-统计最近7天各活动的参与人数
-查询双十一拉新活动的奖励发放成功率
-统计 APP 渠道和 H5 渠道分别带来了多少参与人数
-查询奖励发放失败次数最多的活动
-分析最近一周活动参与人数最高的活动
-查询每个活动的奖励发放总金额
-对比不同活动的转化率
-```
+增加 SQL Guard，只允许 SELECT，禁止修改类 SQL，同时限制敏感字段。
+
+### 13.3 文档索引耗时较长
+
+解决方案：
+
+上传文档后先保存元数据，再发送 RocketMQ 文档索引消息，由消费者异步调用 Python RAG 服务完成文档切分和向量化。
+
+### 13.4 学习行为高频写入影响主流程
+
+解决方案：
+
+学习行为先发送 RocketMQ 消息，消费者异步写入数据库，避免主接口被统计写入阻塞。
+
+### 13.5 消息重复消费导致数据重复
+
+解决方案：
+
+通过 messageKey、documentId、answerRecordId 等业务唯一标识做幂等判断。
 
 ---
 
-## 17. 最终交付内容
+## 14. 简历描述
 
-请最终生成以下内容：
+项目名称：智能课程学习助手 Agent 平台
 
-```text
-activity-agent/
-├── activity-agent-backend/
-│   └── SpringBoot 后端完整代码
-├── agent-service/
-│   └── Python FastAPI + LangChain Agent 完整代码
-├── sql/
-│   ├── schema.sql
-│   └── init.sql
-├── docs/
-│   └── api.md
-└── README.md
-```
+技术栈：
 
-要求代码结构清晰，注释适量，能够本地运行，适合作为 Java 后端实习项目展示。
+SpringBoot + MyBatis + MySQL + Redis + RocketMQ + Python + FastAPI + LangChain + FAISS + 大模型 API
+
+项目描述：
+
+基于 SpringBoot 与 Python FastAPI + LangChain 搭建智能课程学习助手 Agent 平台，面向高校课程学习与教学辅助场景，采用 Java 后端业务服务与 Python Agent 服务解耦的双服务架构。平台支持课程管理、课程资料上传、RAG 知识库问答、Text-to-SQL 学习数据分析、Hybrid Agent 综合分析、答题与错题记录、学习行为统计和个性化复习建议等功能。
+
+系统中 SpringBoot 负责用户、课程、资料、题目、答题、学习行为和异步任务等业务流程，Python Agent 服务负责文档解析、文本切分、Embedding 向量化、FAISS 检索、大模型问答和 SQL 生成分析。通过 Redis 缓存热点数据与会话上下文，通过 RocketMQ 处理学习行为记录、文档索引和答题统计等异步任务，提升主流程响应速度和系统扩展性。
+
+项目亮点：
+
+* 基于 RAG 构建课程知识库问答流程，支持 txt、md 等课程资料上传，将文档切分后进行 Embedding 向量化并持久化到 FAISS，通过 course_id 做课程级检索隔离，提升回答准确性与可控性。
+* 使用 LangChain 构建 Text-to-SQL Agent，将教师或管理员的自然语言问题转换为安全 SQL 查询，实现课程提问次数、错题数量、知识点错误分布、课程正确率、学习活跃度和学生错误排行等指标分析。
+* 设计 Hybrid Agent 路由机制，根据问题类型自动选择 RAG、SQL 或混合分析流程，支持结合课程资料内容和学生学习数据，生成薄弱点分析与个性化复习建议。
+* 保留 SpringBoot 后端与 Python Agent 服务解耦架构，Java 侧负责业务数据和权限流程，Python 侧负责 RAG、Text-to-SQL 和大模型调用，便于独立开发、部署和扩展 AI 能力。
+* 使用 Redis 缓存登录态、热点课程信息、Agent 会话上下文和热点问答结果，降低数据库重复查询压力，提升高频访问场景下的响应速度。
+* 引入 RocketMQ 处理学习行为记录、课程资料索引、答题统计等异步任务，将耗时任务从主业务链路中拆出，实现业务解耦、削峰填谷和失败重试。
+* 针对模型生成 SQL 的安全风险，设计 SQL Guard，只允许单条 SELECT 查询，禁止危险关键字、多语句执行和敏感字段访问，并默认补充 LIMIT 100，降低误操作和数据泄露风险。
+* 设计学习行为、答题记录、知识点和 Agent 问答等核心表结构，为后续学习画像、薄弱知识点识别和课程质量分析提供数据基础。
+
+---
+
+## 15. 面试介绍话术
+
+这个项目是一个面向高校课程学习场景的智能课程学习助手平台。传统学习系统一般只能展示课程资料和题目，学生遇到问题时还需要自己翻课件或者等老师答疑，效率比较低。所以我在这个项目里引入了 RAG 和 Agent 能力。
+
+系统分成 SpringBoot 后端和 Python Agent 服务两部分。SpringBoot 负责用户、课程、文档、题目、错题、学习记录等业务模块；Python 服务负责 RAG 检索、Text-to-SQL 和大模型调用。
+
+在 RAG 部分，教师可以上传课程资料，系统会对文档进行切分、向量化，并存入 FAISS。学生提问时，系统先从向量库中检索相关课程片段，再把这些片段和问题一起交给大模型回答，从而减少模型幻觉。
+
+在数据分析部分，我使用 Text-to-SQL Agent，让教师可以直接用自然语言查询学习数据，比如某门课程的错题数量、学生正确率、提问次数等。为了防止模型生成危险 SQL，我做了 SQL Guard，只允许 SELECT 查询，并限制敏感字段。
+
+另外我还设计了 Hybrid 模式，对于“根据课程资料分析学生薄弱点”这类问题，系统会先通过 RAG 找到相关知识点，再通过 SQL 查询错题和学习数据，最后综合生成学习建议。
+
+消息队列方面，我使用 RocketMQ 处理学习行为记录、文档索引、答题统计等异步任务。例如上传文档后，主流程只保存文件和文档元数据，然后发送文档索引消息，由消费者异步调用 Python RAG 服务完成向量化，避免文档处理阻塞上传接口。学习行为和答题统计也通过 RocketMQ 异步处理，从而实现业务解耦和流量削峰。
+
+这个项目主要体现了 SpringBoot 后端开发、MySQL 表设计、Redis 缓存、RocketMQ 异步处理、RAG、Text-to-SQL 和 Agent 工程化落地能力。

@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
 
-from agent import ActivitySQLAgent
+from agent import EduSQLAgent
 from hybrid_service import HybridAgent
 from question_router import route_question
 from rag_service import RagService
@@ -24,15 +24,15 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="Activity Agent Service",
+    title="Edu Agent Service",
     version="1.0.0",
-    description="FastAPI + LangChain Text-to-SQL service for activity analytics.",
+    description="FastAPI + LangChain service for course RAG, Text-to-SQL, and Hybrid Agent.",
 )
 
 
 @lru_cache
-def get_agent() -> ActivitySQLAgent:
-    return ActivitySQLAgent()
+def get_agent() -> EduSQLAgent:
+    return EduSQLAgent()
 
 
 @lru_cache
@@ -55,7 +55,11 @@ def query_agent(request: AgentQueryRequest) -> AgentQueryResponse:
     try:
         route_type = route_question(request.question)
         if route_type == "rag":
-            rag_result = get_rag_service().query(request.question, top_k=4)
+            rag_result = get_rag_service().query(
+                course_id=request.course_id,
+                question=request.question,
+                top_k=4,
+            )
             result = {
                 "routeType": "rag",
                 "generatedSql": "",
@@ -67,7 +71,11 @@ def query_agent(request: AgentQueryRequest) -> AgentQueryResponse:
                 "error_message": None,
             }
         elif route_type == "hybrid":
-            result = get_hybrid_agent().query(request.question, request.user_id)
+            result = get_hybrid_agent().query(
+                request.question,
+                user_id=request.user_id,
+                course_id=request.course_id,
+            )
         else:
             result = get_agent().query(request.question, request.user_id)
             result["routeType"] = "sql"
@@ -93,11 +101,13 @@ def query_agent(request: AgentQueryRequest) -> AgentQueryResponse:
             error_message=str(exc),
         )
 
+
 @app.post("/rag/index", response_model=RagIndexResponse)
 def index_rag_document(request: RagIndexRequest) -> RagIndexResponse:
     try:
         result = get_rag_service().index_document(
             document_id=request.document_id,
+            course_id=request.course_id,
             file_path=request.file_path,
             file_name=request.file_name,
         )
@@ -111,6 +121,7 @@ def index_rag_document(request: RagIndexRequest) -> RagIndexResponse:
 def query_rag(request: RagQueryRequest) -> RagQueryResponse:
     try:
         result = get_rag_service().query(
+            course_id=request.course_id,
             question=request.question,
             top_k=request.top_k,
         )

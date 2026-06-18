@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 class AgentQueryRequest(BaseModel):
     question: str = Field(..., min_length=1, description="Natural language question")
-    user_id: Optional[int] = Field(default=None, description="Operator user id")
+    user_id: Optional[int] = Field(default=None, description="User id")
+    course_id: Optional[int] = Field(default=None, ge=1, description="Course id")
 
 
 class AgentQueryResponse(BaseModel):
@@ -21,12 +22,14 @@ class AgentQueryResponse(BaseModel):
 
 class RagIndexRequest(BaseModel):
     document_id: int = Field(..., ge=1, description="Knowledge document id")
+    course_id: int = Field(..., ge=1, description="Course id")
     file_path: str = Field(..., min_length=1, description="Document file path")
     file_name: str = Field(..., min_length=1, description="Original file name")
 
 
 class RagChunkInfo(BaseModel):
     document_id: int
+    course_id: Optional[int] = None
     chunk_index: int
     content: str
     vector_id: Optional[str] = None
@@ -37,12 +40,14 @@ class RagChunkInfo(BaseModel):
 class RagIndexResponse(BaseModel):
     success: bool
     document_id: int
+    course_id: int
     chunk_count: int
     message: str
     chunks: list[RagChunkInfo] = Field(default_factory=list)
 
 
 class RagQueryRequest(BaseModel):
+    course_id: int = Field(..., ge=1, description="Course id")
     question: str = Field(..., min_length=1, description="Knowledge question")
     top_k: int = Field(default=4, ge=1, le=20, description="Retrieved chunk count")
 

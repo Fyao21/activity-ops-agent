@@ -9,21 +9,34 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
 from db import ALLOWED_TABLES, execute_query, get_settings, get_sql_database
-from sql_guard import SQLGuardError, guard_sql, strip_sql_fence
+from sql_guard import guard_sql, strip_sql_fence
 
 
 logger = logging.getLogger(__name__)
 
 
 SQL_PROMPT = PromptTemplate.from_template(
-    """You are an activity operations data analysis SQL generator.
+    """You are an education learning analytics SQL generator for a course learning assistant platform.
 You must follow these rules:
 - Only generate one MySQL SELECT statement.
 - Do not generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, WITH, or multiple statements.
 - Never query sys_user.password or any password field.
 - Only use these tables: {table_info}
-- If the user's question is unrelated to the activity operations database, return exactly REFUSE.
-- Prefer fields from activity, activity_user_record, reward_record, activity_statistics, and agent_qa_record.
+- If the user's question is unrelated to course learning, course documents, Q&A records, learning events, questions, or answer records, return exactly REFUSE.
+- Prefer these tables for common tasks:
+  - course: course names and teachers.
+  - agent_qa_record: student questions and route types.
+  - learning_event: learning activity such as QUESTION, ANSWER, VIEW_COURSE, UPLOAD_DOC.
+  - question: question content and knowledge_point.
+  - answer_record: student answers and correctness.
+  - sys_user: usernames and roles. Never select password.
+  - knowledge_document and knowledge_chunk: course knowledge documents.
+- Use course.course_name when grouping by course.
+- For question count analytics, use agent_qa_record unless the user explicitly asks for learning_event event_type='QUESTION'.
+- For learning activity analytics, use learning_event.
+- For accuracy analytics, use answer_record.correct where 1 means correct and 0 means wrong.
+- For wrong knowledge point analytics, join answer_record to question and group by question.knowledge_point where answer_record.correct = 0.
+- For student ranking, join answer_record.user_id to sys_user.id and select sys_user.username.
 - Return raw SQL only. Do not wrap it in markdown. Do not explain anything.
 
 Database dialect: {dialect}
@@ -33,13 +46,16 @@ Question: {input}"""
 )
 
 
-SUMMARY_SYSTEM_PROMPT = """你是一个活动运营数据分析 Agent。
-你必须基于真实 SQL 查询结果回答，不能编造数据。
-如果结果为空，明确说明没有查到数据。
-回答尽量简洁，直接给出结论和关键数字。"""
+SUMMARY_SYSTEM_PROMPT = (
+    "你是一个课程学习数据分析 Agent。\n"
+    "你必须基于真实 SQL 查询结果回答，不能编造数据。\n"
+    "如果结果为空，明确说明没有查到数据。\n"
+    "回答要直接、清晰，适合教师或管理员理解。\n"
+    "涉及课程、知识点、学生或正确率时，请给出关键名称和数字。"
+)
 
 
-class ActivitySQLAgent:
+class EduSQLAgent:
     def __init__(self) -> None:
         settings = get_settings()
         self.db = get_sql_database()
@@ -60,13 +76,13 @@ class ActivitySQLAgent:
     def query(self, question: str, user_id: int | None = None) -> Dict[str, Any]:
         del user_id
         sql = self._generate_sql(question)
-        if sql == "REFUSE":
+        if sql.upper() == "REFUSE":
             return {
                 "generated_sql": "",
                 "query_result": [],
-                "answer": "该问题与活动运营数据分析无关，当前服务拒绝回答。",
+                "answer": "该问题与课程学习数据分析无关，当前服务拒绝回答。",
                 "success": False,
-                "error_message": "Question is not related to the activity operations database.",
+                "error_message": "Question is not related to the education learning database.",
             }
 
         try:
@@ -105,8 +121,10 @@ class ActivitySQLAgent:
         repair_prompt = [
             SystemMessage(
                 content=(
-                    "You fix MySQL SELECT statements for an activity operations analytics database. "
+                    "You fix MySQL SELECT statements for an education learning analytics database. "
                     "Return exactly one corrected SELECT statement. "
+                    "Use only these tables: "
+                    f"{', '.join(ALLOWED_TABLES)}. "
                     "Do not use WITH. Do not access password fields. "
                     "Do not return markdown."
                 )

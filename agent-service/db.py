@@ -14,11 +14,14 @@ load_dotenv()
 
 
 ALLOWED_TABLES = [
-    "activity",
-    "activity_user_record",
-    "reward_record",
-    "activity_statistics",
+    "sys_user",
+    "course",
+    "knowledge_document",
+    "knowledge_chunk",
     "agent_qa_record",
+    "learning_event",
+    "question",
+    "answer_record",
 ]
 
 

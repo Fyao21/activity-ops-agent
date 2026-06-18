@@ -1,7 +1,5 @@
-import hashlib
-import math
 import os
-import re
+import logging
 from pathlib import Path
 from threading import Lock
 
@@ -11,59 +9,41 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ImportError:  # pragma: no cover - compatibility for older installs
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+
 
 load_dotenv()
 
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
+DEFAULT_LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 DEFAULT_VECTOR_STORE_PATH = "./vector_store"
 INDEX_NAME = "knowledge"
-LOCAL_EMBEDDING_DIMENSIONS = 384
 
-
-class LocalHashEmbeddings(Embeddings):
-    """Deterministic local embeddings for environments without an embedding API."""
-
-    def __init__(self, dimensions: int = LOCAL_EMBEDDING_DIMENSIONS) -> None:
-        self.dimensions = dimensions
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return [self._embed(text) for text in texts]
-
-    def embed_query(self, text: str) -> list[float]:
-        return self._embed(text)
-
-    def _embed(self, text: str) -> list[float]:
-        vector = [0.0] * self.dimensions
-        for token in self._tokens(text):
-            digest = hashlib.md5(token.encode("utf-8")).digest()
-            index = int.from_bytes(digest[:4], "big") % self.dimensions
-            sign = 1.0 if digest[4] % 2 == 0 else -1.0
-            vector[index] += sign
-
-        norm = math.sqrt(sum(value * value for value in vector))
-        if norm == 0:
-            return vector
-        return [value / norm for value in vector]
-
-    @staticmethod
-    def _tokens(text: str) -> list[str]:
-        lowered = text.lower()
-        words = re.findall(r"[a-z0-9]+", lowered)
-        chars = [char for char in lowered if "\u4e00" <= char <= "\u9fff"]
-        bigrams = [
-            "".join(chars[index : index + 2])
-            for index in range(max(len(chars) - 1, 0))
-        ]
-        return words + chars + bigrams
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingProvider:
     def __init__(self) -> None:
         provider = os.getenv("EMBEDDING_PROVIDER", "openai").strip().lower()
         if provider == "local":
-            self.embeddings = LocalHashEmbeddings()
+            model = (
+                os.getenv("EMBEDDING_MODEL", "").strip()
+                or DEFAULT_LOCAL_EMBEDDING_MODEL
+            )
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name=model,
+                encode_kwargs={"normalize_embeddings": True},
+            )
             return
+
+        if provider != "openai":
+            raise RuntimeError(
+                "Unsupported EMBEDDING_PROVIDER. Use 'local' or 'openai'."
+            )
 
         api_key = (
             os.getenv("EMBEDDING_API_KEY", "").strip()
@@ -111,27 +91,59 @@ class FaissVectorStore:
                 store = FAISS.from_documents(documents, self.embeddings, ids=ids)
             else:
                 self._delete_document_chunks(store, documents[0].metadata["document_id"])
-                store.add_documents(documents, ids=ids)
+                try:
+                    store.add_documents(documents, ids=ids)
+                except Exception:
+                    logger.exception(
+                        "Failed to append documents to existing FAISS store. "
+                        "Rebuilding store with current embedding model."
+                    )
+                    store = FAISS.from_documents(documents, self.embeddings, ids=ids)
             self._save(store)
         return ids
 
-    def similarity_search(self, query: str, top_k: int) -> list[tuple[Document, float]]:
+    def similarity_search(
+        self,
+        query: str,
+        top_k: int,
+        course_id: int | None = None,
+    ) -> list[tuple[Document, float]]:
         store = self._load()
         if store is None:
             return []
-        return store.similarity_search_with_score(query, k=top_k)
+
+        fetch_k = max(top_k * 8, 20) if course_id is not None else top_k
+        try:
+            results = store.similarity_search_with_score(query, k=fetch_k)
+        except Exception:
+            logger.exception("FAISS similarity search failed.")
+            return []
+
+        if course_id is None:
+            return results[:top_k]
+
+        filtered = [
+            (document, score)
+            for document, score in results
+            if document.metadata.get("course_id") == course_id
+        ]
+        return filtered[:top_k]
 
     def _load(self) -> FAISS | None:
         index_file = self.store_path / f"{INDEX_NAME}.faiss"
         pickle_file = self.store_path / f"{INDEX_NAME}.pkl"
         if not index_file.exists() or not pickle_file.exists():
             return None
-        return FAISS.load_local(
-            str(self.store_path),
-            self.embeddings,
-            index_name=INDEX_NAME,
-            allow_dangerous_deserialization=True,
-        )
+        try:
+            return FAISS.load_local(
+                str(self.store_path),
+                self.embeddings,
+                index_name=INDEX_NAME,
+                allow_dangerous_deserialization=True,
+            )
+        except Exception:
+            logger.exception("Failed to load FAISS vector store.")
+            return None
 
     def _save(self, store: FAISS) -> None:
         self.store_path.mkdir(parents=True, exist_ok=True)

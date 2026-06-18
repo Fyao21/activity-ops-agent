@@ -1,192 +1,259 @@
-# Activity Agent Service
+# Edu Agent Service
 
-## 1. 项目说明
+`agent-service` 是智能课程学习助手 Agent 平台的 Python FastAPI 服务，负责提供课程资料 RAG 问答、Text-to-SQL 学习数据分析和 Hybrid Agent 混合分析能力。
 
-`agent-service` 是 Python FastAPI 服务，负责把自然语言转换成安全 SQL，查询 MySQL，并返回中文分析结果。
+SpringBoot 后端通过 HTTP 调用本服务。当前服务启动命令：
 
-## 2. 技术栈
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+## 技术栈
 
 - Python 3.11+
 - FastAPI
 - LangChain
+- FAISS
+- sentence-transformers
 - langchain-openai
-- langchain-community
 - SQLAlchemy
 - PyMySQL
 - Uvicorn
 
-## 3. 目录结构
+## 目录结构
 
 ```text
 agent-service/
 ├── main.py
 ├── agent.py
+├── hybrid_service.py
+├── question_router.py
+├── rag_service.py
+├── vector_store.py
+├── document_loader.py
+├── text_splitter.py
 ├── db.py
 ├── schemas.py
 ├── sql_guard.py
 ├── requirements.txt
 ├── .env.example
-├── .env
 └── README.md
 ```
 
-## 4. 功能说明
+## 环境配置
 
-- 提供 `POST /agent/query`
-- 请求字段：`question`、`user_id`
-- 返回字段：`generated_sql`、`query_result`、`answer`、`success`、`error_message`
-- 使用 LangChain `SQLDatabase` 连接 MySQL
-- 使用 `ChatOpenAI` 调用 OpenAI 兼容模型接口
-- 执行前做 SQL 安全校验
-- 如果没有 `LIMIT`，自动补 `LIMIT 100`
-- SQL 执行失败时，自动尝试修复一次
-
-## 5. SQL 安全规则
-
-规则实现见：
-
-- [sql_guard.py](E:\Project\activity-agent\agent-service\sql_guard.py)
-
-限制如下：
-
-- 只允许单条 `SELECT`
-- 禁止 `INSERT`、`UPDATE`、`DELETE`、`DROP`、`ALTER`、`TRUNCATE`、`CREATE`
-- 禁止多语句执行
-- 禁止查询 `sys_user.password`
-- 默认自动补 `LIMIT 100`
-
-为了降低敏感数据暴露，模型只会看到以下表：
-
-- `activity`
-- `activity_user_record`
-- `reward_record`
-- `activity_statistics`
-- `agent_qa_record`
-
-## 6. 环境配置
-
-模板文件：
-
-- [.env.example](E:\Project\activity-agent\agent-service\.env.example)
-
-本地文件：
-
-- [.env](E:\Project\activity-agent\agent-service\.env)
-
-建议本地配置：
+复制 `.env.example` 为 `.env`，不要把真实 API Key 提交到代码仓库。
 
 ```env
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1
-MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=your_api_key
+OPENAI_BASE_URL=https://api.openai-proxy.org/v1
+MODEL_NAME=deepseek-v4-flash
+
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=BAAI/bge-small-zh-v1.5
+VECTOR_STORE_PATH=./vector_store
 
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=wt292292
-MYSQL_DATABASE=activity_agent
+MYSQL_USER=agent_readonly
+MYSQL_PASSWORD=123456
+MYSQL_DATABASE=edu_agent
 ```
 
-## 7. 安装依赖
+`EMBEDDING_PROVIDER=local` 使用本地 sentence-transformers 模型。首次运行可能会下载 `BAAI/bge-small-zh-v1.5`。
 
-```bash
-pip install -r requirements.txt
+`EMBEDDING_PROVIDER=openai` 预留 OpenAI 兼容 embedding 实现，可配置：
+
+```env
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_BASE_URL=https://api.openai.com/v1
+EMBEDDING_API_KEY=your_embedding_api_key
 ```
 
-## 8. 启动方式
+## 安装依赖
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-可访问接口：
-
-- `GET /health`
-- `POST /agent/query`
-- `GET /docs`
-
-## 9. 本地自测
-
-### 9.1 初始化数据库
-
-在 `agent-service` 目录下执行：
-
-```bash
-mysql -uroot -pwt292292 < ../sql/schema.sql
-mysql -uroot -pwt292292 < ../sql/init.sql
-```
-
-### 9.2 创建虚拟环境
-
-```bash
+cd agent-service
 python -m venv .venv
-```
-
-PowerShell：
-
-```powershell
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 9.3 配置 `.env`
+## 启动服务
 
-至少确认以下三项正确：
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `MODEL_NAME`
-
-### 9.4 启动服务
+开发时可加 `--reload`：
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 9.5 健康检查
+可访问：
+
+- `GET /health`
+- `POST /rag/index`
+- `POST /rag/query`
+- `POST /agent/query`
+- `GET /docs`
+
+## RAG 文档索引
+
+接口：`POST /rag/index`
+
+请求示例：
+
+```json
+{
+  "document_id": 1,
+  "course_id": 1,
+  "file_path": "uploads/knowledge/redis-cache.md",
+  "file_name": "Redis复习资料.md"
+}
+```
+
+处理流程：
+
+- 读取 `txt` 或 `md` 文件；
+- 使用 LangChain `RecursiveCharacterTextSplitter` 切分文本；
+- `chunk_size=500`，`chunk_overlap=80`；
+- 使用本地或 OpenAI 兼容 Embedding；
+- 向量写入 FAISS；
+- metadata 保存 `document_id`、`course_id`、`file_name`、`file_path`、`chunk_index`；
+- FAISS 持久化到 `VECTOR_STORE_PATH`。
+
+响应示例：
+
+```json
+{
+  "success": true,
+  "document_id": 1,
+  "course_id": 1,
+  "chunk_count": 3,
+  "message": "文档索引成功"
+}
+```
+
+## RAG 查询
+
+接口：`POST /rag/query`
+
+请求示例：
+
+```json
+{
+  "course_id": 1,
+  "question": "Redis 缓存穿透是什么？",
+  "top_k": 4
+}
+```
+
+处理流程：
+
+- 将问题向量化；
+- 从 FAISS 检索同一 `course_id` 下的相关片段；
+- 将检索片段拼接进 Prompt；
+- 调用大模型生成回答；
+- 如果没有相关片段，返回 `知识库中未找到相关信息`。
+
+Prompt 约束：
+
+```text
+你是一个课程学习知识库助手。
+你只能基于给定的课程资料上下文回答问题。
+如果上下文中没有答案，请回答“知识库中未找到相关信息”。
+不要编造课程资料中不存在的内容。
+回答要适合学生理解。
+如果涉及多个知识点，请分条说明。
+```
+
+## Agent 查询
+
+接口：`POST /agent/query`
+
+该接口保留原有 Text-to-SQL 能力，并根据问题路由到 SQL、RAG 或 Hybrid 流程。
+
+请求示例：
+
+```json
+{
+  "user_id": 1,
+  "course_id": 1,
+  "question": "统计最近 7 天每门课程提问次数"
+}
+```
+
+Text-to-SQL 会经过 SQL Guard 校验后再执行。
+
+## SQL Guard
+
+规则实现见 `sql_guard.py`。
+
+限制：
+
+- 只允许单条 `SELECT`；
+- 禁止 `INSERT`、`UPDATE`、`DELETE`、`DROP`、`ALTER`、`TRUNCATE`、`CREATE` 等危险语句；
+- 禁止多语句执行；
+- 禁止查询 `sys_user.password` 或任何 `password` 字段；
+- 如果没有 `LIMIT`，默认补 `LIMIT 100`。
+
+## 快速自测
+
+健康检查：
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-预期返回：
+索引文档：
 
-```json
-{"status":"ok"}
+```bash
+curl -X POST "http://localhost:8000/rag/index" \
+  -H "Content-Type: application/json" \
+  -d "{\"document_id\":1,\"course_id\":1,\"file_path\":\"uploads/knowledge/redis-cache.md\",\"file_name\":\"Redis复习资料.md\"}"
 ```
 
-### 9.6 查询测试
+查询知识库：
+
+```bash
+curl -X POST "http://localhost:8000/rag/query" \
+  -H "Content-Type: application/json" \
+  -d "{\"course_id\":1,\"question\":\"Redis 缓存穿透是什么？\",\"top_k\":4}"
+```
+
+Agent 查询：
 
 ```bash
 curl -X POST "http://localhost:8000/agent/query" \
   -H "Content-Type: application/json" \
-  -d "{\"question\":\"统计最近7天各活动的参与人数\",\"user_id\":1}"
+  -d "{\"user_id\":1,\"course_id\":1,\"question\":\"统计最近 7 天每门课程提问次数\"}"
 ```
 
-## 10. 建议验证问题
+## 常见问题
 
-```text
-统计最近7天各活动的参与人数
-查询双十一拉新活动的奖励发放成功率
-对比 APP 和 H5 渠道参与人数
-查询奖励发放失败最多的活动
-```
+### 本地 Embedding 首次启动慢
 
-## 11. 常见问题
+首次加载 `BAAI/bge-small-zh-v1.5` 可能需要下载模型。确认网络可访问 HuggingFace，或提前将模型缓存到本机。
 
-### 11.1 SQL 被拒绝
+### 找不到上传文档
 
-通常是以下原因：
+`document_loader.py` 会尝试从以下位置解析相对路径：
 
-- 不是 `SELECT`
-- 命中危险关键字
-- 查询了 `password`
-- 多语句执行
+- 当前启动目录；
+- `agent-service` 目录；
+- 项目根目录；
+- `activity-agent-backend` 目录。
 
-### 11.2 查询结果为空
+如果 SpringBoot 后端传入 `uploads/knowledge/xxx.md`，文件通常应位于 `activity-agent-backend/uploads/knowledge/xxx.md`。
+
+### RAG 查询没有结果
 
 优先检查：
 
-1. 是否执行了 `sql/init.sql`
-2. `.env` 中数据库名是否是 `activity_agent`
-3. MySQL 账号和密码是否正确
+- 是否已经调用 `/rag/index`；
+- `course_id` 是否一致；
+- `VECTOR_STORE_PATH` 是否指向同一个目录；
+- 文档是否为非空 `txt` 或 `md` 文件。
