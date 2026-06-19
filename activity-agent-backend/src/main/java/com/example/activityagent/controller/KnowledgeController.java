@@ -2,8 +2,8 @@ package com.example.activityagent.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.activityagent.common.Result;
-import com.example.activityagent.dto.DocumentUploadResponse;
 import com.example.activityagent.dto.KnowledgeQueryRequest;
+import com.example.activityagent.dto.KnowledgeUploadResponse;
 import com.example.activityagent.service.KnowledgeService;
 import com.example.activityagent.vo.KnowledgeDocumentVO;
 import com.example.activityagent.vo.KnowledgeQueryResponse;
@@ -26,16 +26,20 @@ public class KnowledgeController {
     private final KnowledgeService knowledgeService;
 
     @PostMapping("/upload")
-    public Result<DocumentUploadResponse> upload(@RequestPart("file") MultipartFile file) {
-        return Result.success(knowledgeService.upload(file));
+    public Result<KnowledgeUploadResponse> upload(
+        @RequestParam("courseId") Long courseId,
+        @RequestParam("file") MultipartFile file
+    ) {
+        return Result.success(knowledgeService.upload(courseId, file));
     }
 
     @GetMapping("/list")
     public Result<IPage<KnowledgeDocumentVO>> list(
+        @RequestParam("courseId") Long courseId,
         @RequestParam(defaultValue = "1") long pageNum,
         @RequestParam(defaultValue = "10") long pageSize
     ) {
-        return Result.success(knowledgeService.listDocuments(pageNum, pageSize));
+        return Result.success(knowledgeService.listDocuments(courseId, pageNum, pageSize));
     }
 
     @PostMapping("/query")

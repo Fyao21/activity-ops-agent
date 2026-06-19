@@ -5,12 +5,12 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class KnowledgeDocumentVO {
+public class CourseVO {
     private Long id;
-    private Long courseId;
-    private String fileName;
-    private String fileType;
+    private String courseName;
+    private Long teacherId;
+    private String description;
     private Integer status;
-    private Integer chunkCount;
     private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 }

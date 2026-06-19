@@ -8,21 +8,14 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("knowledge_document")
-public class KnowledgeDocument {
-    public static final int STATUS_PENDING = 0;
-    public static final int STATUS_SUCCESS = 1;
-    public static final int STATUS_FAILED = 2;
-
+@TableName("course")
+public class Course {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long courseId;
-    private String fileName;
-    private String fileType;
-    private String filePath;
+    private String courseName;
+    private Long teacherId;
+    private String description;
     private Integer status;
-    private Integer chunkCount;
-    private String errorMessage;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

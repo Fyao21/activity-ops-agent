@@ -2,10 +2,10 @@ package com.example.activityagent.client;
 
 import com.example.activityagent.common.BusinessException;
 import com.example.activityagent.config.AgentProperties;
-import com.example.activityagent.vo.KnowledgeQueryResponse;
-import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
+import com.example.activityagent.dto.RagIndexRequest;
+import com.example.activityagent.dto.RagIndexResponse;
+import com.example.activityagent.dto.RagQueryRequest;
+import com.example.activityagent.dto.RagQueryResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -18,9 +18,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -29,17 +26,19 @@ public class PythonRagClient {
     private final RestTemplate restTemplate;
     private final AgentProperties agentProperties;
 
-    public RagIndexResponse index(Long documentId, String filePath, String fileName) {
+    public RagIndexResponse index(Long documentId, Long courseId, String filePath, String fileName) {
         RagIndexRequest request = new RagIndexRequest();
         request.setDocumentId(documentId);
+        request.setCourseId(courseId);
         request.setFilePath(filePath);
         request.setFileName(fileName);
         return post(agentProperties.getRagIndexUrl(), request, new ParameterizedTypeReference<>() {
         });
     }
 
-    public KnowledgeQueryResponse query(String question, Integer topK) {
+    public RagQueryResponse query(Long courseId, String question, Integer topK) {
         RagQueryRequest request = new RagQueryRequest();
+        request.setCourseId(courseId);
         request.setQuestion(question);
         request.setTopK(topK == null ? 4 : topK);
         return post(agentProperties.getRagQueryUrl(), request, new ParameterizedTypeReference<>() {
@@ -61,44 +60,5 @@ public class PythonRagClient {
             log.error("Call Python RAG service failed, url={}", url, ex);
             throw new BusinessException("Call Python RAG service failed");
         }
-    }
-
-    @Data
-    private static class RagIndexRequest {
-        @JsonProperty("document_id")
-        private Long documentId;
-        @JsonProperty("file_path")
-        private String filePath;
-        @JsonProperty("file_name")
-        private String fileName;
-    }
-
-    @Data
-    private static class RagQueryRequest {
-        private String question;
-        @JsonProperty("top_k")
-        private Integer topK;
-    }
-
-    @Data
-    public static class RagIndexResponse {
-        private Boolean success;
-        @JsonAlias("document_id")
-        private Long documentId;
-        @JsonAlias("chunk_count")
-        private Integer chunkCount;
-        private String message;
-        private List<RagChunkInfo> chunks = new ArrayList<>();
-    }
-
-    @Data
-    public static class RagChunkInfo {
-        @JsonAlias("document_id")
-        private Long documentId;
-        @JsonAlias("chunk_index")
-        private Integer chunkIndex;
-        private String content;
-        @JsonAlias("vector_id")
-        private String vectorId;
     }
 }

@@ -13,6 +13,7 @@ public class KnowledgeChunk {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long documentId;
+    private Long courseId;
     private Integer chunkIndex;
     private String content;
     private String vectorId;

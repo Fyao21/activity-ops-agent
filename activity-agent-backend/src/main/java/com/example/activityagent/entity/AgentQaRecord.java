@@ -13,8 +13,11 @@ public class AgentQaRecord {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
+    private Long courseId;
     private String question;
+    private String routeType;
     private String generatedSql;
+    private String retrievedContext;
     private String queryResult;
     private String answer;
     private Integer success;

@@ -5,15 +5,20 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.activityagent.client.PythonRagClient;
 import com.example.activityagent.common.BusinessException;
-import com.example.activityagent.dto.DocumentUploadResponse;
 import com.example.activityagent.dto.KnowledgeQueryRequest;
-import com.example.activityagent.entity.KnowledgeChunk;
+import com.example.activityagent.dto.KnowledgeUploadResponse;
+import com.example.activityagent.dto.RagQueryResponse;
+import com.example.activityagent.entity.AgentQaRecord;
 import com.example.activityagent.entity.KnowledgeDocument;
-import com.example.activityagent.mapper.KnowledgeChunkMapper;
+import com.example.activityagent.mapper.AgentQaRecordMapper;
 import com.example.activityagent.mapper.KnowledgeDocumentMapper;
+import com.example.activityagent.mq.dto.KnowledgeIndexMessage;
+import com.example.activityagent.mq.producer.KnowledgeIndexProducer;
 import com.example.activityagent.service.KnowledgeService;
 import com.example.activityagent.vo.KnowledgeDocumentVO;
 import com.example.activityagent.vo.KnowledgeQueryResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -27,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -40,12 +46,17 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md");
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeChunkMapper knowledgeChunkMapper;
+    private final AgentQaRecordMapper agentQaRecordMapper;
     private final PythonRagClient pythonRagClient;
+    private final KnowledgeIndexProducer knowledgeIndexProducer;
+    private final ObjectMapper objectMapper;
 
     @Override
-    @Transactional
-    public DocumentUploadResponse upload(MultipartFile file) {
+    @Transactional(rollbackFor = Exception.class)
+    public KnowledgeUploadResponse upload(Long courseId, MultipartFile file) {
+        if (courseId == null) {
+            throw new BusinessException("courseId must not be null");
+        }
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Uploaded file must not be empty");
         }
@@ -56,56 +67,58 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             throw new BusinessException("Only txt and md files are supported");
         }
 
-        Path savedPath = saveFile(file, originalName, fileType);
-        KnowledgeDocument document = createPendingDocument(originalName, fileType, savedPath);
+        Path savedPath = saveFile(file, originalName);
+        KnowledgeDocument document = createPendingDocument(courseId, originalName, fileType, savedPath);
         knowledgeDocumentMapper.insert(document);
 
-        try {
-            // Python reads the uploaded file directly, so pass an absolute path.
-            PythonRagClient.RagIndexResponse indexResponse = pythonRagClient.index(
-                document.getId(),
-                savedPath.toAbsolutePath().toString(),
-                originalName
-            );
-            if (!Boolean.TRUE.equals(indexResponse.getSuccess())) {
-                throw new BusinessException(indexResponse.getMessage());
-            }
-            int chunkCount = indexResponse.getChunkCount() == null ? 0 : indexResponse.getChunkCount();
-            saveChunks(document.getId(), indexResponse);
-            markSuccess(document.getId(), chunkCount);
-            return buildUploadResponse(document.getId(), originalName, fileType, KnowledgeDocument.STATUS_SUCCESS, chunkCount, "Document indexed successfully");
-        } catch (Exception ex) {
-            log.error("Index knowledge document failed, documentId={}", document.getId(), ex);
-            markFailed(document.getId(), ex.getMessage());
-            return buildUploadResponse(document.getId(), originalName, fileType, KnowledgeDocument.STATUS_FAILED, 0, ex.getMessage());
-        }
+        // Upload returns immediately after enqueueing. Python RAG indexing runs in RocketMQ consumer.
+        sendKnowledgeIndexMessage(document);
+        return buildUploadResponse(document, "Document uploaded, waiting for async indexing");
     }
 
     @Override
-    public IPage<KnowledgeDocumentVO> listDocuments(long pageNum, long pageSize) {
+    public IPage<KnowledgeDocumentVO> listDocuments(Long courseId, long pageNum, long pageSize) {
+        if (courseId == null) {
+            throw new BusinessException("courseId must not be null");
+        }
         Page<KnowledgeDocument> page = new Page<>(Math.max(pageNum, 1), Math.min(Math.max(pageSize, 1), 100));
         IPage<KnowledgeDocument> entityPage = knowledgeDocumentMapper.selectPage(
             page,
             new LambdaQueryWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getCourseId, courseId)
                 .orderByDesc(KnowledgeDocument::getCreateTime)
         );
 
         Page<KnowledgeDocumentVO> voPage = new Page<>(entityPage.getCurrent(), entityPage.getSize(), entityPage.getTotal());
-        voPage.setRecords(
-            entityPage.getRecords().stream()
-                .map(this::toDocumentVO)
-                .toList()
-        );
+        voPage.setRecords(entityPage.getRecords().stream().map(this::toDocumentVO).toList());
         return voPage;
     }
 
     @Override
     public KnowledgeQueryResponse query(KnowledgeQueryRequest request) {
-        return pythonRagClient.query(request.getQuestion(), request.getTopK());
+        try {
+            RagQueryResponse response = pythonRagClient.query(request.getCourseId(), request.getQuestion(), request.getTopK());
+            saveRagQaRecord(request, response, true, null);
+            return response;
+        } catch (RuntimeException ex) {
+            KnowledgeQueryResponse failedResponse = new KnowledgeQueryResponse();
+            failedResponse.setAnswer("");
+            saveRagQaRecord(request, failedResponse, false, ex.getMessage());
+            throw ex;
+        }
     }
 
-    private Path saveFile(MultipartFile file, String originalName, String fileType) {
-        // Keep files under uploads/knowledge and avoid trusting client-side paths.
+    private void sendKnowledgeIndexMessage(KnowledgeDocument document) {
+        KnowledgeIndexMessage message = new KnowledgeIndexMessage();
+        message.setDocumentId(document.getId());
+        message.setCourseId(document.getCourseId());
+        message.setFilePath(document.getFilePath());
+        message.setFileName(document.getFileName());
+        message.setEventTime(LocalDateTime.now());
+        knowledgeIndexProducer.send(message);
+    }
+
+    private Path saveFile(MultipartFile file, String originalName) {
         try {
             Files.createDirectories(UPLOAD_DIR);
             String savedName = UUID.randomUUID() + "-" + originalName;
@@ -129,46 +142,15 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         return name;
     }
 
-    private KnowledgeDocument createPendingDocument(String fileName, String fileType, Path savedPath) {
+    private KnowledgeDocument createPendingDocument(Long courseId, String fileName, String fileType, Path savedPath) {
         KnowledgeDocument document = new KnowledgeDocument();
+        document.setCourseId(courseId);
         document.setFileName(fileName);
         document.setFileType(fileType);
         document.setFilePath(savedPath.toString());
         document.setStatus(KnowledgeDocument.STATUS_PENDING);
         document.setChunkCount(0);
         return document;
-    }
-
-    private void saveChunks(Long documentId, PythonRagClient.RagIndexResponse indexResponse) {
-        if (indexResponse.getChunks() == null || indexResponse.getChunks().isEmpty()) {
-            return;
-        }
-        for (PythonRagClient.RagChunkInfo chunkInfo : indexResponse.getChunks()) {
-            KnowledgeChunk chunk = new KnowledgeChunk();
-            chunk.setDocumentId(documentId);
-            chunk.setChunkIndex(chunkInfo.getChunkIndex());
-            chunk.setContent(chunkInfo.getContent());
-            chunk.setVectorId(chunkInfo.getVectorId());
-            knowledgeChunkMapper.insert(chunk);
-        }
-    }
-
-    private void markSuccess(Long documentId, int chunkCount) {
-        KnowledgeDocument update = new KnowledgeDocument();
-        update.setId(documentId);
-        update.setStatus(KnowledgeDocument.STATUS_SUCCESS);
-        update.setChunkCount(chunkCount);
-        update.setErrorMessage(null);
-        knowledgeDocumentMapper.updateById(update);
-    }
-
-    private void markFailed(Long documentId, String errorMessage) {
-        KnowledgeDocument update = new KnowledgeDocument();
-        update.setId(documentId);
-        update.setStatus(KnowledgeDocument.STATUS_FAILED);
-        update.setChunkCount(0);
-        update.setErrorMessage(errorMessage);
-        knowledgeDocumentMapper.updateById(update);
     }
 
     private String extractFileType(String fileName) {
@@ -185,21 +167,41 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         return vo;
     }
 
-    private DocumentUploadResponse buildUploadResponse(
-        Long documentId,
-        String fileName,
-        String fileType,
-        Integer status,
-        Integer chunkCount,
-        String message
-    ) {
-        DocumentUploadResponse response = new DocumentUploadResponse();
-        response.setDocumentId(documentId);
-        response.setFileName(fileName);
-        response.setFileType(fileType);
-        response.setStatus(status);
-        response.setChunkCount(chunkCount);
+    private KnowledgeUploadResponse buildUploadResponse(KnowledgeDocument document, String message) {
+        KnowledgeUploadResponse response = new KnowledgeUploadResponse();
+        response.setDocumentId(document.getId());
+        response.setCourseId(document.getCourseId());
+        response.setFileName(document.getFileName());
+        response.setFileType(document.getFileType());
+        response.setStatus(document.getStatus());
+        response.setChunkCount(document.getChunkCount());
         response.setMessage(message);
         return response;
+    }
+
+    private void saveRagQaRecord(
+        KnowledgeQueryRequest request,
+        KnowledgeQueryResponse response,
+        boolean success,
+        String errorMessage
+    ) {
+        AgentQaRecord record = new AgentQaRecord();
+        record.setUserId(request.getUserId() == null ? 1L : request.getUserId());
+        record.setCourseId(request.getCourseId());
+        record.setQuestion(request.getQuestion());
+        record.setRouteType("RAG");
+        record.setRetrievedContext(toJson(response.getRetrievedChunks()));
+        record.setAnswer(response.getAnswer());
+        record.setSuccess(success ? 1 : 0);
+        record.setErrorMessage(errorMessage);
+        agentQaRecordMapper.insert(record);
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            return "[]";
+        }
     }
 }

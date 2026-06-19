@@ -6,7 +6,7 @@ spring:
     name: activity-agent-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/activity_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/edu_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     username: root
     password: wt292292
   data:
@@ -38,7 +38,7 @@ agent:
 rocketmq:
   name-server: 127.0.0.1:9876
   producer:
-    group: agent-task-producer-group
+    group: edu-agent-producer-group
 
 activity:
   mq:
