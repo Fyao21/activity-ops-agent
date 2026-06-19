@@ -6,6 +6,8 @@ import com.example.activityagent.service.AgentService;
 import com.example.activityagent.vo.AgentQueryResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,5 +23,10 @@ public class AgentController {
     @PostMapping("/query")
     public Result<AgentQueryResponse> query(@Valid @RequestBody AgentQueryRequest request) {
         return Result.success(agentService.query(request));
+    }
+
+    @DeleteMapping("/record/{id}")
+    public Result<Boolean> deleteRecord(@PathVariable Long id) {
+        return Result.success(agentService.deleteRecord(id));
     }
 }

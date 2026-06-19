@@ -30,21 +30,44 @@ public class AgentServiceImpl implements AgentService {
         try {
             response = pythonAgentClient.query(request);
         } catch (Exception ex) {
-            saveRecord(request, null, null, null, false, ex.getMessage());
+            saveRecord(request, null, null, null, null, false, ex.getMessage());
             throw ex;
         }
 
+        normalizeResponse(request, response);
         saveRecord(
             request,
+            response.getRouteType(),
             response.getGeneratedSql(),
-            toJson(response.getQueryResult()),
+            toJson(response.getRetrievedChunks()),
             response.getAnswer(),
             Boolean.TRUE.equals(response.getSuccess()),
             response.getErrorMessage()
         );
+        return response;
+    }
 
+    @Override
+    public Boolean deleteRecord(Long id) {
+        if (id == null) {
+            throw new com.example.activityagent.common.BusinessException("agent QA record id must not be null");
+        }
+        if (agentQaRecordMapper.selectById(id) == null) {
+            throw new com.example.activityagent.common.BusinessException("Agent QA record does not exist: " + id);
+        }
+        agentQaRecordMapper.deleteById(id);
+        return true;
+    }
+
+    private void normalizeResponse(AgentQueryRequest request, AgentQueryResponse response) {
         if (StringUtils.isBlank(response.getQuestion())) {
             response.setQuestion(request.getQuestion());
+        }
+        if (StringUtils.isBlank(response.getRouteType())) {
+            response.setRouteType("sql");
+        }
+        if (StringUtils.isBlank(response.getGeneratedSql())) {
+            response.setGeneratedSql("");
         }
         if (response.getQueryResult() == null) {
             response.setQueryResult(Collections.emptyList());
@@ -52,22 +75,27 @@ public class AgentServiceImpl implements AgentService {
         if (response.getRetrievedChunks() == null) {
             response.setRetrievedChunks(Collections.emptyList());
         }
-        return response;
+        if (response.getSuccess() == null) {
+            response.setSuccess(false);
+        }
     }
 
     private void saveRecord(
         AgentQueryRequest request,
+        String routeType,
         String generatedSql,
-        String queryResult,
+        String retrievedContext,
         String answer,
         boolean success,
         String errorMessage
     ) {
         AgentQaRecord record = new AgentQaRecord();
         record.setUserId(request.getUserId());
+        record.setCourseId(request.getCourseId());
         record.setQuestion(request.getQuestion());
+        record.setRouteType(routeType);
         record.setGeneratedSql(generatedSql);
-        record.setQueryResult(queryResult);
+        record.setRetrievedContext(retrievedContext);
         record.setAnswer(answer);
         record.setSuccess(success ? 1 : 0);
         record.setErrorMessage(errorMessage);
@@ -76,9 +104,9 @@ public class AgentServiceImpl implements AgentService {
 
     private String toJson(Object data) {
         try {
-            return objectMapper.writeValueAsString(data);
+            return objectMapper.writeValueAsString(data == null ? Collections.emptyList() : data);
         } catch (JsonProcessingException ex) {
-            log.warn("Serialize query result failed", ex);
+            log.warn("Serialize retrieved context failed", ex);
             return String.valueOf(data);
         }
     }

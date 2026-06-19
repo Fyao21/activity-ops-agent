@@ -129,6 +129,17 @@ class FaissVectorStore:
         ]
         return filtered[:top_k]
 
+    def delete_document(self, document_id: int) -> int:
+        with self._lock:
+            store = self._load()
+            if store is None:
+                return 0
+
+            deleted_count = self._delete_document_chunks(store, document_id)
+            if deleted_count > 0:
+                self._save(store)
+            return deleted_count
+
     def _load(self) -> FAISS | None:
         index_file = self.store_path / f"{INDEX_NAME}.faiss"
         pickle_file = self.store_path / f"{INDEX_NAME}.pkl"
@@ -150,7 +161,7 @@ class FaissVectorStore:
         store.save_local(str(self.store_path), index_name=INDEX_NAME)
 
     @staticmethod
-    def _delete_document_chunks(store: FAISS, document_id: int) -> None:
+    def _delete_document_chunks(store: FAISS, document_id: int) -> int:
         doc_ids = []
         for docstore_id in store.index_to_docstore_id.values():
             document = store.docstore.search(docstore_id)
@@ -159,3 +170,4 @@ class FaissVectorStore:
                 doc_ids.append(docstore_id)
         if doc_ids:
             store.delete(ids=doc_ids)
+        return len(doc_ids)

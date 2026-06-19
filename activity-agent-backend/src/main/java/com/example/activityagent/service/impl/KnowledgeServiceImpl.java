@@ -9,8 +9,11 @@ import com.example.activityagent.dto.KnowledgeQueryRequest;
 import com.example.activityagent.dto.KnowledgeUploadResponse;
 import com.example.activityagent.dto.RagQueryResponse;
 import com.example.activityagent.entity.AgentQaRecord;
+import com.example.activityagent.entity.KnowledgeChunk;
 import com.example.activityagent.entity.KnowledgeDocument;
 import com.example.activityagent.mapper.AgentQaRecordMapper;
+import com.example.activityagent.mapper.CourseMapper;
+import com.example.activityagent.mapper.KnowledgeChunkMapper;
 import com.example.activityagent.mapper.KnowledgeDocumentMapper;
 import com.example.activityagent.mq.dto.KnowledgeIndexMessage;
 import com.example.activityagent.mq.producer.KnowledgeIndexProducer;
@@ -46,6 +49,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md");
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
+    private final KnowledgeChunkMapper knowledgeChunkMapper;
+    private final CourseMapper courseMapper;
     private final AgentQaRecordMapper agentQaRecordMapper;
     private final PythonRagClient pythonRagClient;
     private final KnowledgeIndexProducer knowledgeIndexProducer;
@@ -56,6 +61,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public KnowledgeUploadResponse upload(Long courseId, MultipartFile file) {
         if (courseId == null) {
             throw new BusinessException("courseId must not be null");
+        }
+        if (courseMapper.selectById(courseId) == null) {
+            throw new BusinessException("Course does not exist: " + courseId);
         }
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Uploaded file must not be empty");
@@ -106,6 +114,33 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             saveRagQaRecord(request, failedResponse, false, ex.getMessage());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean delete(Long id) {
+        if (id == null) {
+            throw new BusinessException("document id must not be null");
+        }
+
+        KnowledgeDocument document = knowledgeDocumentMapper.selectById(id);
+        if (document == null) {
+            throw new BusinessException("Knowledge document does not exist: " + id);
+        }
+
+        // Indexed documents may have vectors in FAISS, so remove vectors before deleting database rows.
+        boolean mayHaveVectors = Integer.valueOf(KnowledgeDocument.STATUS_SUCCESS).equals(document.getStatus())
+            || (document.getChunkCount() != null && document.getChunkCount() > 0);
+        if (mayHaveVectors) {
+            pythonRagClient.delete(id);
+        }
+
+        knowledgeChunkMapper.delete(
+            new LambdaQueryWrapper<KnowledgeChunk>().eq(KnowledgeChunk::getDocumentId, id)
+        );
+        knowledgeDocumentMapper.deleteById(id);
+        deleteLocalFile(document.getFilePath());
+        return true;
     }
 
     private void sendKnowledgeIndexMessage(KnowledgeDocument document) {
@@ -177,6 +212,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         response.setChunkCount(document.getChunkCount());
         response.setMessage(message);
         return response;
+    }
+
+    private void deleteLocalFile(String filePath) {
+        if (!StringUtils.hasText(filePath)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(Paths.get(filePath));
+        } catch (IOException ex) {
+            // Database rows and vectors are already removed; keep deletion idempotent and log file cleanup failure.
+            log.warn("Delete local knowledge file failed, filePath={}", filePath, ex);
+        }
     }
 
     private void saveRagQaRecord(

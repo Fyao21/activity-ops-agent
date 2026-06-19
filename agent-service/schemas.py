@@ -13,10 +13,12 @@ class AgentQueryResponse(BaseModel):
     routeType: Optional[str] = None
     generatedSql: str = ""
     generated_sql: str = ""
+    queryResult: Any = None
     query_result: Any = None
     retrievedChunks: list[Any] = Field(default_factory=list)
     answer: str = ""
     success: bool
+    errorMessage: Optional[str] = None
     error_message: Optional[str] = None
 
 
@@ -56,3 +58,14 @@ class RagQueryResponse(BaseModel):
     answer: str
     retrieved_chunks: list[RagChunkInfo] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)
+
+
+class RagDeleteRequest(BaseModel):
+    document_id: int = Field(..., ge=1, description="Knowledge document id")
+
+
+class RagDeleteResponse(BaseModel):
+    success: bool
+    document_id: int
+    deleted_count: int
+    message: str

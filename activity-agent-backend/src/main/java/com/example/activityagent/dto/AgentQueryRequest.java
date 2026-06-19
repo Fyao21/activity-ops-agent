@@ -14,4 +14,8 @@ public class AgentQueryRequest {
     @JsonProperty("user_id")
     @JsonAlias("userId")
     private Long userId;
+
+    @JsonProperty("course_id")
+    @JsonAlias("courseId")
+    private Long courseId;
 }

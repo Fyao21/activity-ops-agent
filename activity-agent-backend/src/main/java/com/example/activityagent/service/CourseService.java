@@ -14,4 +14,6 @@ public interface CourseService {
     CourseVO getById(Long id);
 
     CourseVO update(CourseUpdateRequest request);
+
+    Boolean delete(Long id);
 }

@@ -7,6 +7,7 @@ import com.example.activityagent.service.CourseService;
 import com.example.activityagent.vo.CourseVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,5 +47,10 @@ public class CourseController {
     @PutMapping("/update")
     public Result<CourseVO> update(@Valid @RequestBody CourseUpdateRequest request) {
         return Result.success(courseService.update(request));
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Boolean> delete(@PathVariable Long id) {
+        return Result.success(courseService.delete(id));
     }
 }

@@ -17,7 +17,6 @@ ALLOWED_TABLES = [
     "sys_user",
     "course",
     "knowledge_document",
-    "knowledge_chunk",
     "agent_qa_record",
     "learning_event",
     "question",

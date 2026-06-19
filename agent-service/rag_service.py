@@ -111,6 +111,15 @@ class RagService:
             "sources": retrieve_result["sources"],
         }
 
+    def delete_document(self, document_id: int) -> dict[str, Any]:
+        deleted_count = self.vector_store.delete_document(document_id)
+        return {
+            "success": True,
+            "document_id": document_id,
+            "deleted_count": deleted_count,
+            "message": "文档向量删除成功",
+        }
+
     def retrieve(
         self,
         question: str,

@@ -32,6 +32,7 @@ agent:
   python-url: http://localhost:8000/agent/query
   rag-index-url: http://localhost:8000/rag/index
   rag-query-url: http://localhost:8000/rag/query
+  rag-delete-url: http://localhost:8000/rag/delete
   connect-timeout-ms: 5000
   read-timeout-ms: 60000
 

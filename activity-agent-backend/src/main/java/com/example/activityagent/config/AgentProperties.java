@@ -12,6 +12,7 @@ public class AgentProperties {
     private String pythonUrl;
     private String ragIndexUrl;
     private String ragQueryUrl;
+    private String ragDeleteUrl;
     private Integer connectTimeoutMs = 5000;
     private Integer readTimeoutMs = 60000;
 }

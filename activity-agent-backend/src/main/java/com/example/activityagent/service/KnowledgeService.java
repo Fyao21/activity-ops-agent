@@ -13,4 +13,6 @@ public interface KnowledgeService {
     IPage<KnowledgeDocumentVO> listDocuments(Long courseId, long pageNum, long pageSize);
 
     KnowledgeQueryResponse query(KnowledgeQueryRequest request);
+
+    Boolean delete(Long id);
 }

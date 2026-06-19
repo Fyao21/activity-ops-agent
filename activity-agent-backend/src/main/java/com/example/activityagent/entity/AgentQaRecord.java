@@ -1,6 +1,7 @@
 package com.example.activityagent.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -18,6 +19,7 @@ public class AgentQaRecord {
     private String routeType;
     private String generatedSql;
     private String retrievedContext;
+    @TableField(exist = false)
     private String queryResult;
     private String answer;
     private Integer success;

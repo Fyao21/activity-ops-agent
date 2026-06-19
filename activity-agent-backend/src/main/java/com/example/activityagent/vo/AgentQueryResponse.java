@@ -14,6 +14,7 @@ public class AgentQueryResponse {
     private String generatedSql;
     @JsonAlias("query_result")
     private List<Map<String, Object>> queryResult;
+    @JsonAlias("retrieved_chunks")
     private List<Map<String, Object>> retrievedChunks;
     private String answer;
     private Boolean success;

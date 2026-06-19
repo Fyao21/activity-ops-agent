@@ -2,14 +2,8 @@ SQL_KEYWORDS = (
     "统计",
     "数量",
     "人数",
-    "次数",
     "正确率",
-    "错误率",
     "错题数",
-    "提问次数",
-    "答题",
-    "错误最多",
-    "错题最多",
     "排名",
     "对比",
     "最近",
@@ -18,12 +12,11 @@ SQL_KEYWORDS = (
     "本周",
     "平均",
     "活跃度",
-    "每门课程",
 )
 
 RAG_KEYWORDS = (
-    "是什么",
     "什么是",
+    "是什么",
     "解释",
     "原理",
     "规则",
@@ -57,8 +50,10 @@ def route_question(question: str) -> str:
     has_rag = any(keyword in normalized for keyword in RAG_KEYWORDS)
     has_hybrid = any(keyword in normalized for keyword in HYBRID_KEYWORDS)
 
-    if (has_sql and has_rag) or (has_hybrid and (has_sql or has_rag)):
+    if has_hybrid or (has_sql and has_rag):
         return "hybrid"
+    if has_sql:
+        return "sql"
     if has_rag:
         return "rag"
     return "sql"

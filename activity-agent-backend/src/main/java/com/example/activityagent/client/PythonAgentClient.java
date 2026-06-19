@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -30,19 +31,19 @@ public class PythonAgentClient {
             HttpEntity<AgentQueryRequest> entity = new HttpEntity<>(request, headers);
             ResponseEntity<AgentQueryResponse> response = restTemplate.exchange(
                 agentProperties.getPythonUrl(),
-                org.springframework.http.HttpMethod.POST,
+                HttpMethod.POST,
                 entity,
                 new ParameterizedTypeReference<>() {
                 }
             );
             AgentQueryResponse body = response.getBody();
             if (body == null) {
-                throw new BusinessException("Python Agent 返回为空");
+                throw new BusinessException("Python Agent returned empty response");
             }
             return body;
         } catch (RestClientException ex) {
-            log.error("Call Python agent failed", ex);
-            throw new BusinessException("调用 Python Agent 服务失败");
+            log.error("Call Python Agent failed", ex);
+            throw new BusinessException("Call Python Agent service failed");
         }
     }
 }

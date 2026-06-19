@@ -2,6 +2,8 @@ package com.example.activityagent.client;
 
 import com.example.activityagent.common.BusinessException;
 import com.example.activityagent.config.AgentProperties;
+import com.example.activityagent.dto.RagDeleteRequest;
+import com.example.activityagent.dto.RagDeleteResponse;
 import com.example.activityagent.dto.RagIndexRequest;
 import com.example.activityagent.dto.RagIndexResponse;
 import com.example.activityagent.dto.RagQueryRequest;
@@ -42,6 +44,13 @@ public class PythonRagClient {
         request.setQuestion(question);
         request.setTopK(topK == null ? 4 : topK);
         return post(agentProperties.getRagQueryUrl(), request, new ParameterizedTypeReference<>() {
+        });
+    }
+
+    public RagDeleteResponse delete(Long documentId) {
+        RagDeleteRequest request = new RagDeleteRequest();
+        request.setDocumentId(documentId);
+        return post(agentProperties.getRagDeleteUrl(), request, new ParameterizedTypeReference<>() {
         });
     }
 

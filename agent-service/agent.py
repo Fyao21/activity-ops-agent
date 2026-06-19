@@ -16,42 +16,50 @@ logger = logging.getLogger(__name__)
 
 
 SQL_PROMPT = PromptTemplate.from_template(
-    """You are an education learning analytics SQL generator for a course learning assistant platform.
-You must follow these rules:
-- Only generate one MySQL SELECT statement.
-- Do not generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, WITH, or multiple statements.
-- Never query sys_user.password or any password field.
-- Only use these tables: {table_info}
-- If the user's question is unrelated to course learning, course documents, Q&A records, learning events, questions, or answer records, return exactly REFUSE.
-- Prefer these tables for common tasks:
-  - course: course names and teachers.
-  - agent_qa_record: student questions and route types.
-  - learning_event: learning activity such as QUESTION, ANSWER, VIEW_COURSE, UPLOAD_DOC.
-  - question: question content and knowledge_point.
-  - answer_record: student answers and correctness.
-  - sys_user: usernames and roles. Never select password.
-  - knowledge_document and knowledge_chunk: course knowledge documents.
-- Use course.course_name when grouping by course.
-- For question count analytics, use agent_qa_record unless the user explicitly asks for learning_event event_type='QUESTION'.
-- For learning activity analytics, use learning_event.
-- For accuracy analytics, use answer_record.correct where 1 means correct and 0 means wrong.
-- For wrong knowledge point analytics, join answer_record to question and group by question.knowledge_point where answer_record.correct = 0.
-- For student ranking, join answer_record.user_id to sys_user.id and select sys_user.username.
-- Return raw SQL only. Do not wrap it in markdown. Do not explain anything.
+    """你是智能课程学习助手平台的教育学习数据分析 SQL Agent。
 
-Database dialect: {dialect}
-Top K default rows: {top_k}
+请把教师或管理员的自然语言问题转换为 MySQL 查询语句。
 
-Question: {input}"""
+强制规则：
+- 只能生成一条 MySQL SELECT 语句。
+- 禁止 INSERT、UPDATE、DELETE、DROP、ALTER、TRUNCATE、CREATE、REPLACE、MERGE、CALL、GRANT、REVOKE。
+- 禁止多语句。
+- 禁止查询 sys_user.password，也禁止查询任何 password 字段。
+- 只能使用下列数据库表，不允许使用其他表：
+{table_info}
+- 如果问题和课程、学生、学习行为、问答记录、题目、答题、知识库文档无关，返回 REFUSE。
+- 只返回 SQL 本身，不要 markdown，不要解释。
+
+业务表说明：
+- sys_user：用户信息，字段 id、username、role。严禁查询 password。
+- course：课程信息，字段 id、course_name、teacher_id、description、status。
+- knowledge_document：课程资料文档，字段 id、course_id、file_name、file_type、status、chunk_count、create_time。
+- agent_qa_record：Agent 问答记录，字段 user_id、course_id、question、route_type、success、create_time。
+- learning_event：学习行为，字段 user_id、course_id、event_type、event_time、message_key。
+- question：题目，字段 id、course_id、knowledge_point、question_content、option_a、option_b、option_c、option_d、answer、analysis。
+- answer_record：答题记录，字段 user_id、course_id、question_id、user_answer、correct、create_time，其中 correct=1 表示正确，correct=0 表示错误。
+
+常见分析口径：
+- 统计提问次数：优先使用 agent_qa_record，并按 course_id 关联 course。
+- 学习活跃度：使用 learning_event，按 event_type、course_id、user_id 聚合。
+- 正确率：使用 AVG(answer_record.correct) 或 SUM(correct)/COUNT(*)。
+- 错题最多的知识点：answer_record 关联 question，筛选 answer_record.correct=0，按 question.knowledge_point 分组。
+- 答题错误最多的学生：answer_record 关联 sys_user，筛选 correct=0，按 user_id/username 分组。
+- 涉及课程名称时，使用 course.course_name。
+- 涉及“最近 7 天/最近一周”时，使用 NOW() 和 INTERVAL 7 DAY。
+- 查询结果默认最多返回 {top_k} 行。
+
+数据库方言：{dialect}
+
+用户问题：{input}"""
 )
 
 
 SUMMARY_SYSTEM_PROMPT = (
-    "你是一个课程学习数据分析 Agent。\n"
-    "你必须基于真实 SQL 查询结果回答，不能编造数据。\n"
-    "如果结果为空，明确说明没有查到数据。\n"
-    "回答要直接、清晰，适合教师或管理员理解。\n"
-    "涉及课程、知识点、学生或正确率时，请给出关键名称和数字。"
+    "你是课程学习数据分析助手。"
+    "你只能基于 SQL 查询结果回答，不能编造数据。"
+    "如果查询结果为空，请明确说明没有查到相关数据。"
+    "回答要面向教师或管理员，直接、清晰，突出课程、知识点、学生、次数、正确率等关键指标。"
 )
 
 
@@ -78,10 +86,13 @@ class EduSQLAgent:
         sql = self._generate_sql(question)
         if sql.upper() == "REFUSE":
             return {
+                "generatedSql": "",
                 "generated_sql": "",
+                "queryResult": [],
                 "query_result": [],
-                "answer": "该问题与课程学习数据分析无关，当前服务拒绝回答。",
+                "answer": "该问题与教育学习数据分析无关，当前服务拒绝回答。",
                 "success": False,
+                "errorMessage": "Question is not related to the education learning database.",
                 "error_message": "Question is not related to the education learning database.",
             }
 
@@ -95,10 +106,13 @@ class EduSQLAgent:
 
         answer = self._summarize(question, guarded_sql, query_result)
         return {
+            "generatedSql": guarded_sql,
             "generated_sql": guarded_sql,
+            "queryResult": query_result,
             "query_result": query_result,
             "answer": answer,
             "success": True,
+            "errorMessage": None,
             "error_message": None,
         }
 
@@ -121,21 +135,19 @@ class EduSQLAgent:
         repair_prompt = [
             SystemMessage(
                 content=(
-                    "You fix MySQL SELECT statements for an education learning analytics database. "
-                    "Return exactly one corrected SELECT statement. "
-                    "Use only these tables: "
-                    f"{', '.join(ALLOWED_TABLES)}. "
-                    "Do not use WITH. Do not access password fields. "
-                    "Do not return markdown."
+                    "你负责修复教育学习数据分析场景下的 MySQL SELECT。"
+                    "只返回一条修复后的 SELECT 语句。"
+                    f"只能使用这些表：{', '.join(ALLOWED_TABLES)}。"
+                    "禁止 WITH、禁止多语句、禁止 password 字段、禁止 markdown。"
                 )
             ),
             HumanMessage(
                 content=(
-                    f"Question: {question}\n"
-                    f"Allowed tables: {', '.join(ALLOWED_TABLES)}\n"
-                    f"Original SQL: {original_sql}\n"
-                    f"Execution error: {error}\n"
-                    "Return corrected SQL only."
+                    f"用户问题：{question}\n"
+                    f"允许表：{', '.join(ALLOWED_TABLES)}\n"
+                    f"原 SQL：{original_sql}\n"
+                    f"执行错误：{error}\n"
+                    "请只返回修复后的 SQL。"
                 )
             ),
         ]

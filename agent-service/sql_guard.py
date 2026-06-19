@@ -5,6 +5,16 @@ class SQLGuardError(ValueError):
     pass
 
 
+ALLOWED_TABLES = {
+    "sys_user",
+    "course",
+    "knowledge_document",
+    "agent_qa_record",
+    "learning_event",
+    "question",
+    "answer_record",
+}
+
 FORBIDDEN_KEYWORDS = (
     "INSERT",
     "UPDATE",
@@ -66,6 +76,35 @@ def ensure_no_password_access(sql: str) -> str:
     return sql
 
 
+def ensure_allowed_tables(sql: str) -> str:
+    cleaned = re.sub(r"'(?:''|[^'])*'", "''", sql)
+    cleaned = re.sub(r'"(?:""|[^"])*"', '""', cleaned)
+    table_names = set(
+        re.findall(
+            r"(?is)\bjoin\s+`?([a-zA-Z_][a-zA-Z0-9_]*)`?",
+            cleaned,
+        )
+    )
+
+    from_matches = re.findall(
+        r"(?is)\bfrom\s+(.+?)(?:\bwhere\b|\bgroup\s+by\b|\border\s+by\b|\bhaving\b|\blimit\b|$)",
+        cleaned,
+    )
+    for from_clause in from_matches:
+        for part in re.split(r"(?i)\bjoin\b|,", from_clause):
+            candidate = part.strip()
+            if not candidate or candidate.startswith("("):
+                continue
+            match = re.match(r"`?([a-zA-Z_][a-zA-Z0-9_]*)`?", candidate)
+            if match:
+                table_names.add(match.group(1))
+
+    for table_name in table_names:
+        if table_name.lower() not in ALLOWED_TABLES:
+            raise SQLGuardError(f"Table is not allowed: {table_name}")
+    return sql
+
+
 def ensure_limit(sql: str, default_limit: int = 100) -> str:
     trimmed = sql.strip()
     suffix = ";" if trimmed.endswith(";") else ""
@@ -82,5 +121,6 @@ def guard_sql(sql: str, default_limit: int = 100) -> str:
     guarded = ensure_single_statement(guarded)
     guarded = ensure_no_forbidden_keywords(guarded)
     guarded = ensure_no_password_access(guarded)
+    guarded = ensure_allowed_tables(guarded)
     guarded = ensure_limit(guarded, default_limit=default_limit)
     return guarded

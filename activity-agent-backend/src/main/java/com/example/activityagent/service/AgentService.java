@@ -5,4 +5,6 @@ import com.example.activityagent.vo.AgentQueryResponse;
 
 public interface AgentService {
     AgentQueryResponse query(AgentQueryRequest request);
+
+    Boolean deleteRecord(Long id);
 }
