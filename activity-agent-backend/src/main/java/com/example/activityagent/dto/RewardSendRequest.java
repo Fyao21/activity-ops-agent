@@ -7,6 +7,10 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Data
+/**
+ * @deprecated Legacy activity reward DTO retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class RewardSendRequest {
     @NotNull
     private Long activityId;

@@ -22,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
     consumerGroup = RocketMqConstant.AGENT_TASK_CONSUMER_GROUP,
     selectorExpression = RocketMqConstant.AGENT_TASK_SELECTOR
 )
+/**
+ * @deprecated Legacy activity participate/reward task consumer. Course learning
+ * assistant flows use knowledge indexing, learning events, and answer stats.
+ */
+@Deprecated(forRemoval = false)
 public class AgentTaskConsumer implements RocketMQListener<AgentTaskMessage> {
 
     private final RewardRecordMapper rewardRecordMapper;

@@ -7,6 +7,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
+/**
+ * @deprecated Legacy activity-analysis DTO retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityCreateRequest {
     @NotBlank
     private String activityName;

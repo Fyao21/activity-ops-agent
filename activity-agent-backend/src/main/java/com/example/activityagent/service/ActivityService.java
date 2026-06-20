@@ -6,6 +6,10 @@ import com.example.activityagent.entity.Activity;
 
 import java.util.List;
 
+/**
+ * @deprecated Legacy activity-analysis service retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public interface ActivityService {
     Activity create(ActivityCreateRequest request);
 

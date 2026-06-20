@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("activity_statistics")
+/**
+ * @deprecated Legacy activity statistics entity retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityStatistics {
     @TableId(type = IdType.AUTO)
     private Long id;

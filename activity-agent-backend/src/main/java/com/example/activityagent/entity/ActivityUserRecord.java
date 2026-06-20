@@ -9,6 +9,10 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("activity_user_record")
+/**
+ * @deprecated Legacy activity participation entity retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityUserRecord {
     @TableId(type = IdType.AUTO)
     private Long id;

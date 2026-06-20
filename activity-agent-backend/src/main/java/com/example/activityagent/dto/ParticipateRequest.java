@@ -5,6 +5,10 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
+/**
+ * @deprecated Legacy activity-analysis DTO retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ParticipateRequest {
     @NotNull
     private Long activityId;

@@ -1,3 +1,7 @@
+<!--
+  DEPRECATED: Legacy activity participation page retained only for old demos.
+  It is not part of the intelligent course learning assistant core UI.
+-->
 <template>
   <el-row :gutter="18">
     <el-col :xs="24" :lg="10">

@@ -377,3 +377,4 @@ curl.exe -X POST "http://localhost:8000/agent/query" `
 ```
 
 
+> DEPRECATED: 本测试文档中的问题样例仍来自旧活动分析场景，不作为智能课程学习助手 Agent 平台的主测试依据。课程学习场景请以 `docs/product.md` 和后端自测文档为准。

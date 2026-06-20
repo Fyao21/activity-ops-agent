@@ -7,6 +7,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
+/**
+ * @deprecated Legacy activity participate/reward RocketMQ payload retained only
+ * for old activity-analysis demos.
+ */
+@Deprecated(forRemoval = false)
 public class AgentTaskMessage implements Serializable {
 
     private Long taskId;

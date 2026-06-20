@@ -1,3 +1,7 @@
+<!--
+  DEPRECATED: Legacy activity-analysis page retained only for old demos.
+  It is not part of the intelligent course learning assistant core UI.
+-->
 <template>
   <div>
     <el-row :gutter="18">

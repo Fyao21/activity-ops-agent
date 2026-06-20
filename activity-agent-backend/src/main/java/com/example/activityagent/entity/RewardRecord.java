@@ -10,6 +10,10 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("reward_record")
+/**
+ * @deprecated Legacy activity reward entity retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class RewardRecord {
     @TableId(type = IdType.AUTO)
     private Long id;

@@ -15,6 +15,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/statistics")
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity statistics API. It is kept for old demos and
+ * does not belong to the intelligent course learning assistant core flow.
+ */
+@Deprecated(forRemoval = false)
 public class StatisticsController {
 
     private final StatisticsService statisticsService;

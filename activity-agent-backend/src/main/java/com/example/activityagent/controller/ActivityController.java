@@ -21,6 +21,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/activity")
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity-analysis API. It is kept for old demos and does
+ * not belong to the intelligent course learning assistant core flow.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityController {
 
     private final ActivityService activityService;

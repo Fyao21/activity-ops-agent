@@ -14,6 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/activity")
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity-analysis API. It is kept for old demos and does
+ * not belong to the intelligent course learning assistant core flow.
+ */
+@Deprecated(forRemoval = false)
 public class ParticipateController {
 
     private final ParticipateService participateService;

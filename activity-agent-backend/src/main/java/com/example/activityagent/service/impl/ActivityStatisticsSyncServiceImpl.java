@@ -20,6 +20,10 @@ import java.time.LocalTime;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity statistics sync implementation retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityStatisticsSyncServiceImpl implements ActivityStatisticsSyncService {
 
     private final ActivityStatisticsMapper activityStatisticsMapper;

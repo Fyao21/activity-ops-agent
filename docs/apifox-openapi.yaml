@@ -1,0 +1,1494 @@
+openapi: 3.0.3
+info:
+  title: 智能课程学习助手后端 API
+  version: 1.0.0
+  description: |
+    本文档根据当前项目 `activity-agent-backend` 的 Controller、DTO、VO、Entity 编写，可导入 Apifox。
+
+    统一响应格式：
+    - 成功：`code = 1`，`message = success`，`data` 为接口数据。
+    - 失败：`code = 0`，`message` 为错误原因，`data = null`。
+
+    说明：
+    - Java 后端地址默认 `http://localhost:8080`。
+    - 前端本地开发通过 `/api` 代理访问后端，导入 Apifox 时建议直接使用后端地址。
+    - Python `agent-service` 是后端内部调用服务，未混入本文档，避免与后端同名路径产生不同返回结构。
+servers:
+  - url: http://localhost:8080
+    description: Spring Boot 后端本地环境
+tags:
+  - name: 系统
+    description: 服务健康检查
+  - name: 认证
+    description: 登录接口
+  - name: 课程
+    description: 课程管理
+  - name: 题目
+    description: 题库管理
+  - name: 答题
+    description: 答题提交、错题列表
+  - name: 知识库
+    description: 课程资料上传、查询、删除
+  - name: 智能问答
+    description: Agent 自然语言问答
+  - name: 学习行为
+    description: 学习事件记录
+  - name: 活动
+    description: 已废弃。旧活动分析演示接口，不属于课程学习助手核心接口。
+  - name: 奖励
+    description: 已废弃。旧活动分析演示接口，不属于课程学习助手核心接口。
+  - name: 统计
+    description: 已废弃。旧活动统计查询接口，不属于课程学习助手核心接口。
+
+paths:
+  /:
+    get:
+      tags:
+        - 系统
+      summary: 首页探活
+      operationId: index
+      responses:
+        "200":
+          description: 服务可用
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          service:
+                            type: string
+                          status:
+                            type: string
+              example:
+                code: 1
+                message: success
+                data:
+                  service: activity-agent-backend
+                  status: ok
+
+  /health:
+    get:
+      tags:
+        - 系统
+      summary: 健康检查
+      operationId: health
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+              example:
+                code: 1
+                message: success
+                data:
+                  status: ok
+
+  /auth/login:
+    post:
+      tags:
+        - 认证
+      summary: 用户登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              username: admin
+              password: "123456"
+      responses:
+        "200":
+          description: 登录结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+              example:
+                code: 1
+                message: success
+                data:
+                  token: 6f4c89a6e8a64f9fb7ef5b80e3d0c1a2
+
+  /course/create:
+    post:
+      tags:
+        - 课程
+      summary: 创建课程
+      operationId: createCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseCreateRequest"
+            example:
+              courseName: Java 基础
+              teacherId: 1
+              description: Java 入门课程
+              status: 1
+      responses:
+        "200":
+          description: 创建结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResult"
+
+  /course/list:
+    get:
+      tags:
+        - 课程
+      summary: 分页查询课程列表
+      operationId: listCourses
+      parameters:
+        - name: pageNum
+          in: query
+          description: 页码，从 1 开始
+          schema:
+            type: integer
+            format: int64
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            format: int64
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CourseVO"
+
+  /course/{id}:
+    get:
+      tags:
+        - 课程
+      summary: 获取课程详情
+      operationId: getCourse
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 课程详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResult"
+    delete:
+      tags:
+        - 课程
+      summary: 删除课程
+      operationId: deleteCourse
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /course/update:
+    put:
+      tags:
+        - 课程
+      summary: 更新课程
+      operationId: updateCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CourseUpdateRequest"
+            example:
+              id: 1
+              courseName: Java 基础进阶
+              teacherId: 1
+              description: 更新课程描述
+              status: 1
+      responses:
+        "200":
+          description: 更新结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CourseResult"
+
+  /question/create:
+    post:
+      tags:
+        - 题目
+      summary: 创建题目
+      operationId: createQuestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionCreateRequest"
+            example:
+              courseId: 1
+              knowledgePoint: Java 基础语法
+              questionContent: Java 中哪个关键字用于定义类？
+              optionA: class
+              optionB: interface
+              optionC: enum
+              optionD: package
+              answer: A
+              analysis: class 用于定义类。
+      responses:
+        "200":
+          description: 创建结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionResult"
+
+  /question/list:
+    get:
+      tags:
+        - 题目
+      summary: 查询课程题目列表
+      operationId: listQuestions
+      parameters:
+        - name: courseId
+          in: query
+          required: true
+          description: 课程 ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/QuestionVO"
+
+  /question/{id}:
+    delete:
+      tags:
+        - 题目
+      summary: 删除题目
+      operationId: deleteQuestion
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /answer/submit:
+    post:
+      tags:
+        - 答题
+      summary: 提交答案
+      operationId: submitAnswer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswerSubmitRequest"
+            example:
+              userId: 1
+              courseId: 1
+              questionId: 1
+              userAnswer: A
+      responses:
+        "200":
+          description: 答题结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnswerResultVO"
+
+  /answer/wrong/list:
+    get:
+      tags:
+        - 答题
+      summary: 查询错题列表
+      operationId: listWrongAnswers
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: 用户 ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - name: courseId
+          in: query
+          required: true
+          description: 课程 ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/WrongQuestionVO"
+
+  /answer/{id}:
+    delete:
+      tags:
+        - 答题
+      summary: 删除答题记录
+      operationId: deleteAnswer
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /knowledge/upload:
+    post:
+      tags:
+        - 知识库
+      summary: 上传课程资料
+      operationId: uploadKnowledge
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - courseId
+                - file
+              properties:
+                courseId:
+                  type: integer
+                  format: int64
+                  description: 课程 ID
+                  example: 1
+                file:
+                  type: string
+                  format: binary
+                  description: 资料文件，仅支持 txt、md
+      responses:
+        "200":
+          description: 上传结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/KnowledgeUploadResponse"
+
+  /knowledge/list:
+    get:
+      tags:
+        - 知识库
+      summary: 分页查询课程资料
+      operationId: listKnowledgeDocuments
+      parameters:
+        - name: courseId
+          in: query
+          required: true
+          description: 课程 ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - name: pageNum
+          in: query
+          description: 页码，从 1 开始
+          schema:
+            type: integer
+            format: int64
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            format: int64
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/KnowledgeDocumentPage"
+
+  /knowledge/query:
+    post:
+      tags:
+        - 知识库
+      summary: 基于课程资料问答
+      operationId: queryKnowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeQueryRequest"
+            example:
+              courseId: 1
+              userId: 1
+              question: Java 的类怎么定义？
+              topK: 4
+      responses:
+        "200":
+          description: 问答结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/KnowledgeQueryResponse"
+
+  /knowledge/{id}:
+    delete:
+      tags:
+        - 知识库
+      summary: 删除课程资料
+      operationId: deleteKnowledgeDocument
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /agent/query:
+    post:
+      tags:
+        - 智能问答
+      summary: Agent 自然语言问答
+      operationId: queryAgent
+      description: 后端会调用 Python Agent，并保存问答记录。请求体字段 `user_id`、`course_id` 同时兼容 `userId`、`courseId`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentQueryRequest"
+            examples:
+              rag:
+                summary: 课程资料问答
+                value:
+                  question: 这门课主要讲什么？
+                  user_id: 1
+                  course_id: 1
+              sql:
+                summary: 数据统计问答
+                value:
+                  question: 查询最近 10 条答题记录
+                  user_id: 1
+      responses:
+        "200":
+          description: 问答结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentQueryResponse"
+
+  /agent/record/{id}:
+    delete:
+      tags:
+        - 智能问答
+      summary: 删除 Agent 问答记录
+      operationId: deleteAgentRecord
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /learning/event:
+    post:
+      tags:
+        - 学习行为
+      summary: 记录学习事件
+      operationId: recordLearningEvent
+      description: 支持事件类型：QUESTION、ANSWER、VIEW_COURSE、UPLOAD_DOC。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningEventRequest"
+            example:
+              userId: 1
+              courseId: 1
+              eventType: VIEW_COURSE
+      responses:
+        "200":
+          description: 发送结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LearningEventResponse"
+
+  /learning/event/{id}:
+    delete:
+      tags:
+        - 学习行为
+      summary: 删除学习事件
+      operationId: deleteLearningEvent
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BooleanResult"
+
+  /activity/create:
+    post:
+      tags:
+        - 活动
+      summary: 创建活动
+      deprecated: true
+      operationId: createActivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityCreateRequest"
+            example:
+              activityName: 课程学习打卡
+              activityType: STUDY_CHECKIN
+              startTime: 2026-06-19T09:00:00
+              endTime: 2026-06-30T18:00:00
+              status: 1
+              ruleDesc: 完成课程学习后参与
+      responses:
+        "200":
+          description: 创建结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityResult"
+
+  /activity/list:
+    get:
+      tags:
+        - 活动
+      summary: 分页查询活动列表
+      deprecated: true
+      operationId: listActivities
+      parameters:
+        - name: page
+          in: query
+          description: 页码，从 1 开始
+          schema:
+            type: integer
+            default: 1
+          example: 1
+        - name: pageSize
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Activity"
+
+  /activity/{id}:
+    get:
+      tags:
+        - 活动
+      summary: 获取活动详情
+      deprecated: true
+      operationId: getActivity
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: 活动详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityResult"
+
+  /activity/update:
+    put:
+      tags:
+        - 活动
+      summary: 更新活动
+      deprecated: true
+      operationId: updateActivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityUpdateRequest"
+            example:
+              id: 1
+              activityName: 课程学习打卡
+              activityType: STUDY_CHECKIN
+              startTime: 2026-06-19T09:00:00
+              endTime: 2026-06-30T18:00:00
+              status: 1
+              ruleDesc: 更新后的规则说明
+      responses:
+        "200":
+          description: 更新结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityResult"
+
+  /activity/participate:
+    post:
+      tags:
+        - 活动
+      summary: 参与活动
+      deprecated: true
+      operationId: participateActivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipateRequest"
+            example:
+              activityId: 1
+              userId: 1
+              channel: APP
+      responses:
+        "200":
+          description: 参与结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ActivityUserRecord"
+
+  /reward/send:
+    post:
+      tags:
+        - 奖励
+      summary: 发放奖励
+      deprecated: true
+      operationId: sendReward
+      description: 创建奖励记录并发送异步任务，最终发放状态由消费者更新。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewardSendRequest"
+            example:
+              activityId: 1
+              userId: 1
+              rewardType: COUPON
+              rewardAmount: 10.00
+      responses:
+        "200":
+          description: 发放任务创建结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RewardRecord"
+
+  /statistics/activity:
+    get:
+      tags:
+        - 统计
+      summary: 查询活动统计
+      deprecated: true
+      operationId: queryActivityStatistics
+      parameters:
+        - name: activityId
+          in: query
+          description: 活动 ID
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - name: startDate
+          in: query
+          description: 开始日期，格式 yyyy-MM-dd
+          schema:
+            type: string
+            format: date
+          example: 2026-06-01
+        - name: endDate
+          in: query
+          description: 结束日期，格式 yyyy-MM-dd
+          schema:
+            type: string
+            format: date
+          example: 2026-06-30
+      responses:
+        "200":
+          description: 查询结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResult"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ActivityStatistics"
+
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: 主键 ID
+      schema:
+        type: integer
+        format: int64
+      example: 1
+
+  schemas:
+    ApiResult:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 业务状态码，1 成功，0 失败
+          example: 1
+        message:
+          type: string
+          description: 响应消息
+          example: success
+        data:
+          nullable: true
+          description: 响应数据
+
+    BooleanResult:
+      allOf:
+        - $ref: "#/components/schemas/ApiResult"
+        - type: object
+          properties:
+            data:
+              type: boolean
+              example: true
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: 用户名
+          example: admin
+        password:
+          type: string
+          description: 密码
+          example: "123456"
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: 登录 token，后端写入 Redis，有效期 12 小时
+          example: 6f4c89a6e8a64f9fb7ef5b80e3d0c1a2
+
+    CourseCreateRequest:
+      type: object
+      required:
+        - courseName
+        - teacherId
+      properties:
+        courseName:
+          type: string
+          description: 课程名称
+        teacherId:
+          type: integer
+          format: int64
+          description: 教师 ID
+        description:
+          type: string
+          description: 课程描述
+        status:
+          type: integer
+          description: 课程状态，默认 1
+          default: 1
+
+    CourseUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/CourseCreateRequest"
+        - type: object
+          required:
+            - id
+            - courseName
+            - teacherId
+          properties:
+            id:
+              type: integer
+              format: int64
+              description: 课程 ID
+
+    CourseVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        courseName:
+          type: string
+        teacherId:
+          type: integer
+          format: int64
+        description:
+          type: string
+        status:
+          type: integer
+        createTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time
+
+    CourseResult:
+      allOf:
+        - $ref: "#/components/schemas/ApiResult"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CourseVO"
+
+    QuestionCreateRequest:
+      type: object
+      required:
+        - courseId
+        - questionContent
+        - optionA
+        - optionB
+        - optionC
+        - optionD
+        - answer
+      properties:
+        courseId:
+          type: integer
+          format: int64
+        knowledgePoint:
+          type: string
+          description: 知识点
+        questionContent:
+          type: string
+          description: 题干
+        optionA:
+          type: string
+        optionB:
+          type: string
+        optionC:
+          type: string
+        optionD:
+          type: string
+        answer:
+          type: string
+          description: 正确答案，服务端要求 A/B/C/D
+          enum:
+            - A
+            - B
+            - C
+            - D
+        analysis:
+          type: string
+          description: 解析
+
+    QuestionVO:
+      allOf:
+        - $ref: "#/components/schemas/QuestionCreateRequest"
+        - type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+            createTime:
+              type: string
+              format: date-time
+
+    QuestionResult:
+      allOf:
+        - $ref: "#/components/schemas/ApiResult"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/QuestionVO"
+
+    AnswerSubmitRequest:
+      type: object
+      required:
+        - userId
+        - courseId
+        - questionId
+        - userAnswer
+      properties:
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        questionId:
+          type: integer
+          format: int64
+        userAnswer:
+          type: string
+          description: 用户答案
+
+    AnswerResultVO:
+      type: object
+      properties:
+        answerRecordId:
+          type: integer
+          format: int64
+        questionId:
+          type: integer
+          format: int64
+        questionContent:
+          type: string
+        optionA:
+          type: string
+        optionB:
+          type: string
+        optionC:
+          type: string
+        optionD:
+          type: string
+        userAnswer:
+          type: string
+        correctAnswer:
+          type: string
+        correct:
+          type: boolean
+        analysis:
+          type: string
+
+    WrongQuestionVO:
+      allOf:
+        - $ref: "#/components/schemas/AnswerResultVO"
+        - type: object
+          properties:
+            courseId:
+              type: integer
+              format: int64
+            knowledgePoint:
+              type: string
+            answerTime:
+              type: string
+              format: date-time
+
+    KnowledgeUploadResponse:
+      type: object
+      properties:
+        documentId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        fileName:
+          type: string
+        fileType:
+          type: string
+          description: 文件类型，支持 txt、md
+        status:
+          type: integer
+          description: 资料状态，0 待索引，1 成功，2 失败
+        chunkCount:
+          type: integer
+          description: 切片数量
+        message:
+          type: string
+
+    KnowledgeDocumentVO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        fileName:
+          type: string
+        fileType:
+          type: string
+        status:
+          type: integer
+          description: 0 待索引，1 成功，2 失败
+        chunkCount:
+          type: integer
+        createTime:
+          type: string
+          format: date-time
+
+    KnowledgeDocumentPage:
+      type: object
+      description: MyBatis-Plus IPage 响应
+      properties:
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/KnowledgeDocumentVO"
+        total:
+          type: integer
+          format: int64
+        size:
+          type: integer
+          format: int64
+        current:
+          type: integer
+          format: int64
+        pages:
+          type: integer
+          format: int64
+
+    KnowledgeQueryRequest:
+      type: object
+      required:
+        - courseId
+        - question
+      properties:
+        courseId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+          default: 1
+        question:
+          type: string
+        topK:
+          type: integer
+          default: 4
+
+    KnowledgeQueryResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+        retrievedChunks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetrievedChunk"
+        sources:
+          type: array
+          items:
+            type: string
+
+    RetrievedChunk:
+      type: object
+      properties:
+        documentId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        chunkIndex:
+          type: integer
+        content:
+          type: string
+        score:
+          type: number
+          format: double
+        vectorId:
+          type: string
+        fileName:
+          type: string
+
+    AgentQueryRequest:
+      type: object
+      required:
+        - question
+        - user_id
+      properties:
+        question:
+          type: string
+          description: 自然语言问题
+        user_id:
+          type: integer
+          format: int64
+          description: 用户 ID
+        course_id:
+          type: integer
+          format: int64
+          description: 课程 ID，可为空
+
+    AgentQueryResponse:
+      type: object
+      properties:
+        question:
+          type: string
+        routeType:
+          type: string
+          description: 路由类型，例如 sql、rag、hybrid
+        generatedSql:
+          type: string
+        queryResult:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        retrievedChunks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        answer:
+          type: string
+        success:
+          type: boolean
+        errorMessage:
+          type: string
+          nullable: true
+
+    LearningEventRequest:
+      type: object
+      required:
+        - userId
+        - courseId
+        - eventType
+      properties:
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+          enum:
+            - QUESTION
+            - ANSWER
+            - VIEW_COURSE
+            - UPLOAD_DOC
+
+    LearningEventResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+        messageKey:
+          type: string
+        status:
+          type: string
+          example: SENT
+
+    ActivityCreateRequest:
+      type: object
+      required:
+        - activityName
+        - activityType
+        - startTime
+        - endTime
+        - status
+      properties:
+        activityName:
+          type: string
+        activityType:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          description: 活动状态，参与逻辑中 1 表示可参与
+        ruleDesc:
+          type: string
+
+    ActivityUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/ActivityCreateRequest"
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              format: int64
+
+    Activity:
+      allOf:
+        - $ref: "#/components/schemas/ActivityUpdateRequest"
+        - type: object
+          properties:
+            createTime:
+              type: string
+              format: date-time
+            updateTime:
+              type: string
+              format: date-time
+
+    ActivityResult:
+      allOf:
+        - $ref: "#/components/schemas/ApiResult"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Activity"
+
+    ParticipateRequest:
+      type: object
+      required:
+        - activityId
+        - userId
+        - channel
+      properties:
+        activityId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        channel:
+          type: string
+          description: 参与渠道
+
+    ActivityUserRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        activityId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        channel:
+          type: string
+        participateStatus:
+          type: integer
+          description: 参与状态，创建成功时为 1
+        participateTime:
+          type: string
+          format: date-time
+        createTime:
+          type: string
+          format: date-time
+
+    RewardSendRequest:
+      type: object
+      required:
+        - activityId
+        - userId
+        - rewardType
+        - rewardAmount
+      properties:
+        activityId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        rewardType:
+          type: string
+        rewardAmount:
+          type: number
+          format: decimal
+
+    RewardRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        activityId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        rewardType:
+          type: string
+        rewardAmount:
+          type: number
+          format: decimal
+        sendStatus:
+          type: integer
+          description: 发放状态，创建时为 0
+        failReason:
+          type: string
+          nullable: true
+        sendTime:
+          type: string
+          format: date-time
+          nullable: true
+        createTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time
+
+    ActivityStatistics:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        activityId:
+          type: integer
+          format: int64
+        statDate:
+          type: string
+          format: date
+        participantCount:
+          type: integer
+        rewardCount:
+          type: integer
+        rewardSuccessCount:
+          type: integer
+        conversionRate:
+          type: number
+          format: decimal
+        retentionRate:
+          type: number
+          format: decimal
+        createTime:
+          type: string
+          format: date-time
+        updateTime:
+          type: string
+          format: date-time

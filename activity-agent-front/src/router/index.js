@@ -1,3 +1,5 @@
+// DEPRECATED: This router still points to legacy activity-analysis demo pages.
+// It is retained for old demos and not for the course learning assistant core UI.
 import { createRouter, createWebHistory } from 'vue-router'
 
 import Dashboard from '../views/Dashboard.vue'

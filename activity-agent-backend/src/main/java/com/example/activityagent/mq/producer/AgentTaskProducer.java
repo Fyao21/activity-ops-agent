@@ -11,6 +11,11 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity participate/reward RocketMQ producer retained
+ * only for old activity-analysis demos.
+ */
+@Deprecated(forRemoval = false)
 public class AgentTaskProducer {
 
     private final RocketMQTemplate rocketMQTemplate;

@@ -14,6 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/reward")
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity reward API. It is kept for old demos and does
+ * not belong to the intelligent course learning assistant core flow.
+ */
+@Deprecated(forRemoval = false)
 public class RewardController {
 
     private final RewardService rewardService;

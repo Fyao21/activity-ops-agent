@@ -12,6 +12,10 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity statistics service retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class StatisticsServiceImpl implements StatisticsService {
 
     private final ActivityStatisticsMapper activityStatisticsMapper;

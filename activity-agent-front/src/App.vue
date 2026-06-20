@@ -1,3 +1,7 @@
+<!--
+  DEPRECATED: Legacy activity-analysis shell retained only for old demos.
+  It is not part of the intelligent course learning assistant core UI.
+-->
 <template>
   <el-container class="layout">
     <el-aside width="220px" class="aside">

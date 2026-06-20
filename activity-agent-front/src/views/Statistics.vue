@@ -1,3 +1,7 @@
+<!--
+  DEPRECATED: Legacy activity statistics page retained only for old demos.
+  It is not part of the intelligent course learning assistant core UI.
+-->
 <template>
   <el-card shadow="never">
     <template #header>

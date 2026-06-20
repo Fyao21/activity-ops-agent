@@ -5,6 +5,10 @@ import com.example.activityagent.entity.ActivityStatistics;
 
 import java.util.List;
 
+/**
+ * @deprecated Legacy activity statistics service retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public interface StatisticsService {
     List<ActivityStatistics> query(StatisticsQueryRequest request);
 }

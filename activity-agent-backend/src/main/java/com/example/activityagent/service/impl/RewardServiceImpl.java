@@ -21,6 +21,10 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity reward service retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class RewardServiceImpl implements RewardService {
 
     private final ActivityMapper activityMapper;

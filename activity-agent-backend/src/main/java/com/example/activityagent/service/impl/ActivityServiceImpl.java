@@ -16,6 +16,10 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity-analysis service implementation retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ActivityServiceImpl implements ActivityService {
 
     private final ActivityMapper activityMapper;

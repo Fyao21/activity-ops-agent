@@ -19,6 +19,10 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * @deprecated Legacy activity participation service retained only for old demos.
+ */
+@Deprecated(forRemoval = false)
 public class ParticipateServiceImpl implements ParticipateService {
 
     private final ActivityMapper activityMapper;

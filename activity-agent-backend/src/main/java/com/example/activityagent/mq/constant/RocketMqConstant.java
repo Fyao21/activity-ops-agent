@@ -19,12 +19,37 @@ public final class RocketMqConstant {
     public static final String ANSWER_STAT_CONSUMER_GROUP = "edu_answer_stat_consumer_group";
     public static final String TAG_ANSWER_STAT = "ANSWER_STAT";
 
+    /**
+     * @deprecated Legacy activity participate/reward task topic retained only
+     * for old activity-analysis demos.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_TOPIC = "agent-task-topic";
+    /**
+     * @deprecated Legacy activity participate/reward producer group.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_PRODUCER_GROUP = "agent-task-producer-group";
+    /**
+     * @deprecated Legacy activity participate/reward consumer group.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_CONSUMER_GROUP = "agent-task-consumer-group";
 
+    /**
+     * @deprecated Legacy activity participation tag.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_TAG_PARTICIPATE = "PARTICIPATE";
+    /**
+     * @deprecated Legacy activity reward tag.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_TAG_REWARD = "REWARD";
+    /**
+     * @deprecated Legacy activity task selector.
+     */
+    @Deprecated(forRemoval = false)
     public static final String AGENT_TASK_SELECTOR = AGENT_TASK_TAG_PARTICIPATE + " || " + AGENT_TASK_TAG_REWARD;
 
     private RocketMqConstant() {

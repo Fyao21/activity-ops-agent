@@ -1,29 +1,26 @@
-# 活动运营数据分析 Agent 项目面试讲解文档
+# 智能课程学习助手 Agent 平台面试讲解文档
 
 ## 1. 项目一句话介绍
 
-这是一个“活动运营数据分析 Agent 系统”，我主要负责后端和服务联调部分。项目支持活动管理、用户参与、奖励发放、活动统计，以及通过自然语言查询活动数据，并结合 Python Agent 自动生成 SQL 和分析结论。
+这是一个面向高校课程学习场景的智能课程学习助手 Agent 平台，我主要负责 Spring Boot 后端业务、Java 与 Python Agent 联调、RAG 知识库链路、Text-to-SQL 查询链路、RocketMQ 异步任务和问答记录落库。
 
-如果用更偏业务的话来说，这个项目就是模拟运营平台里“查数据、看统计、问问题”的完整链路。
+用业务语言来说，这个项目就是把“课程资料、课后答疑、学习行为、答题错题、教学数据分析”串到一起，让学生能基于课程资料提问，让教师能用自然语言查询学习数据。
 
 ---
 
 ## 2. 项目背景
 
-很多运营系统里，运营同学并不会写 SQL，但他们经常会提类似这样的问题：
+传统课程系统通常只能展示课程资料和题目，学生遇到问题还需要自己翻课件、查资料或等老师答疑；教师想看学生学习情况，也经常需要手写 SQL 或依赖后台报表。
 
-- 最近 7 天各活动参与人数是多少？
-- 双十一活动奖励发放成功率是多少？
-- APP 和 H5 渠道哪个带来的参与人数更多？
-- 哪个活动奖励发放失败最多？
+所以这个项目做了三类 Agent 能力：
 
-所以这个项目的目标，是让运营人员直接提自然语言问题，系统自动把问题转换成 SQL，查出结果后再返回结构化数据和自然语言分析结论。
+- RAG：学生基于课程资料提问。
+- Text-to-SQL：教师用自然语言查询学习数据。
+- Hybrid Agent：同时结合课程资料和学习数据，生成薄弱点分析和复习建议。
 
 ---
 
 ## 3. 技术架构
-
-整个项目分成两个服务：
 
 ### 3.1 Java 后端服务
 
@@ -34,18 +31,20 @@
 - MyBatis-Plus
 - MySQL
 - Redis
-- Redis Stream
 - RocketMQ
 
 主要职责：
 
-- 登录
-- 活动管理
-- 用户参与记录
-- 奖励发放记录
-- 活动统计查询
+- 用户登录
+- 课程管理
+- 课程资料上传
+- 题目管理
+- 答题判分
+- 错题记录
+- 学习行为记录
+- Agent 问答记录保存
 - 调用 Python Agent 服务
-- 保存问答记录
+- 发送和消费 RocketMQ 异步任务
 
 ### 3.2 Python Agent 服务
 
@@ -54,289 +53,204 @@
 - Python 3.11+
 - FastAPI
 - LangChain
+- FAISS
+- sentence-transformers
 - SQLAlchemy
 - PyMySQL
 - OpenAI 兼容模型接口
 
 主要职责：
 
-- 接收自然语言问题
-- 获取数据库表结构
-- 生成 SQL
-- 校验 SQL 安全性
-- 执行 SQL
-- 生成自然语言分析结果
+- 文档解析和文本切分
+- Embedding 向量化
+- FAISS 向量检索
+- RAG 知识库问答
+- Text-to-SQL 学习数据分析
+- SQL Guard 安全校验
+- Hybrid Agent 综合分析
 
 ---
 
 ## 4. 数据库设计思路
 
-项目里核心有 6 张表：
+项目核心表包括：
 
 ### 4.1 `sys_user`
 
-用于登录用户信息，区分管理员和运营人员。
+保存用户信息和角色，用于区分学生、教师、管理员。
 
-### 4.2 `activity`
+### 4.2 `course`
 
-用于存活动基本信息，比如：
+保存课程基础信息，例如课程名称、教师、描述和状态。
 
-- 活动名称
-- 活动类型
-- 开始时间
-- 结束时间
-- 状态
-- 规则描述
+### 4.3 `knowledge_document`
 
-### 4.3 `activity_user_record`
+保存上传的课程资料元数据，包括文件路径、处理状态、切片数量和失败原因。
 
-记录用户参与活动的行为数据。
+### 4.4 `knowledge_chunk`
 
-典型字段：
+保存文档切片元数据，包括 `document_id`、`course_id`、`chunk_index`、`content` 和向量库 ID。
 
-- `activity_id`
-- `user_id`
-- `channel`
-- `participate_status`
-- `participate_time`
+### 4.5 `agent_qa_record`
 
-### 4.4 `reward_record`
+保存 Agent 问答记录，包括问题、路由类型、生成 SQL、检索上下文、回答、成功状态和错误信息。
 
-记录奖励发放情况。
+### 4.6 `learning_event`
 
-典型字段：
+保存学生学习行为，例如提问、答题、查看课程、上传资料。`message_key` 用于 MQ 消费幂等。
 
-- `reward_type`
-- `reward_amount`
-- `send_status`
-- `fail_reason`
-- `send_time`
+### 4.7 `question`
 
-### 4.5 `activity_statistics`
+保存题目、知识点、选项、正确答案和解析。
 
-保存活动每日统计数据。
+### 4.8 `answer_record`
 
-典型字段：
-
-- `participant_count`
-- `reward_count`
-- `reward_success_count`
-- `conversion_rate`
-- `retention_rate`
-
-### 4.6 `agent_qa_record`
-
-保存问答记录，便于后续排查和审计。
-
-典型字段：
-
-- `question`
-- `generated_sql`
-- `query_result`
-- `answer`
-- `success`
-- `error_message`
+保存学生答题记录、是否正确，用于错题查询和后续统计。
 
 ---
 
-## 5. 我在这个项目里做了什么
+## 5. 我在项目里做了什么
 
-如果面试官问“你在这个项目里主要负责什么”，可以这样答：
+### 5.1 后端基础框架和接口
 
-### 5.1 我负责了后端基础框架搭建
+我搭建了 Spring Boot 分层结构，完成统一返回、全局异常处理、MyBatis-Plus 分页和基础配置，并实现课程、知识库、题目、答题、错题、学习行为、Agent 查询等核心接口。
 
-包括：
+### 5.2 RAG 知识库链路
 
-- Spring Boot 项目初始化
-- 分层结构设计
-- 统一返回体 `Result`
-- 全局异常处理
-- MyBatis-Plus 集成
-- Redis 集成
+我实现了课程资料上传和异步索引链路：后端保存文件和 `knowledge_document`，发送 RocketMQ 文档索引消息，消费者调用 Python `/rag/index`，成功后保存 `knowledge_chunk` 并更新文档状态。
 
-### 5.2 我实现了核心业务接口
+### 5.3 Java 调 Python Agent 联调
 
-包括：
+Java 后端通过客户端调用 Python 的 RAG 查询、RAG 索引、Agent 查询接口，并把问答结果保存到 `agent_qa_record`，用于问答历史、问题排查和审计。
 
-- `POST /auth/login`
-- `POST /activity/create`
-- `GET /activity/list`
-- `GET /activity/{id}`
-- `PUT /activity/update`
-- `POST /activity/participate`
-- `POST /reward/send`
-- `GET /statistics/activity`
-- `POST /agent/query`
+### 5.4 Text-to-SQL 安全控制
 
-### 5.3 我完成了 Java 调 Python Agent 的联调
+Python 侧 SQL Guard 会对模型生成 SQL 做校验：只允许单条 `SELECT`，禁止危险关键字、多语句、密码字段和非白名单表，没有 `LIMIT` 时自动补 `LIMIT 100`。
 
-后端通过 `RestTemplate` 调用 Python 服务：
+### 5.5 RocketMQ 异步任务
 
-- 地址配置在 `application.yml`
-- 支持超时设置
-- 异常会包装成业务错误
-- Python 返回后会落库到 `agent_qa_record`
+我把文档索引、学习行为、答题统计拆成异步任务：
 
-### 5.4 我做了 Redis Stream 异步处理
+- `edu_knowledge_index_topic`：文档索引。
+- `edu_learning_event_topic`：学习行为记录。
+- `edu_answer_stat_topic`：答题统计扩展。
 
-包括两个 stream：
-
-- `stream:activity:event`
-- `stream:reward:event`
-
-作用：
-
-- 参与活动后异步刷新统计数据
-- 发奖后异步更新奖励状态和统计数据
-
-### 5.4A 我把默认消息队列迁移到了 RocketMQ
-
-在 Redis Stream 链路跑通后，我保留了原有实现，并新增 RocketMQ：
-
-- Topic：`agent-task-topic`
-- Tag：`PARTICIPATE`、`REWARD`
-- Producer Group：`agent-task-producer-group`
-- Consumer Group：`agent-task-consumer-group`
-- 消费异常由 Broker 自动重试
-- 多次重试失败后进入死信队列
-
-当前 Redis Stream 通过配置开关默认关闭，代码仍保留用于方案对比和回滚验证。
-
-### 5.5 我配合完成了 Python Agent 侧的 SQL 安全控制
-
-核心安全约束：
-
-- 只允许 `SELECT`
-- 禁止 `INSERT / UPDATE / DELETE / DROP / ALTER / TRUNCATE / CREATE`
-- 禁止多语句执行
-- 禁止查询 `sys_user.password`
-- 自动补 `LIMIT 100`
+这样耗时任务不会阻塞主接口，也便于后续扩展统计、画像和推荐。
 
 ---
 
 ## 6. 项目亮点
 
-这部分很适合面试时主动讲。
+### 6.1 亮点一：RAG 知识库降低幻觉
 
-### 6.1 亮点一：自然语言转 SQL
+学生提问时，系统先按课程从 FAISS 检索相关资料片段，再让大模型基于上下文回答。这个设计比直接调用大模型更适合课程场景，因为答案可控、可追溯，也更贴近教师上传的资料。
 
-这不是普通 CRUD 项目，项目引入了 Python + LangChain + 大模型，把自然语言问题转成 SQL，再把结果转成自然语言分析。
+### 6.2 亮点二：Text-to-SQL 降低教师查数门槛
 
-这个点能体现：
+教师可以问“统计最近 7 天每门课程的提问次数”“查询 Java 课程错题最多的知识点”这类问题，系统自动生成 SQL 查询数据库，再把结果总结成自然语言。
 
-- 我理解 AI Agent 与业务系统集成的方式
-- 我能做跨语言服务联调
-- 我能考虑 SQL 安全问题
+### 6.3 亮点三：SQL Guard 做安全兜底
 
-### 6.2 亮点二：Redis Stream 异步处理
+模型生成 SQL 不能直接信任，所以我加了 SQL Guard。它限制只读查询、禁止危险语句、禁止密码字段、限制表白名单，并自动补 `LIMIT`，避免误操作业务数据和大结果集拖慢服务。
 
-我没有把统计更新直接写在主流程里，而是改成异步处理。
+### 6.4 亮点四：Hybrid Agent 综合分析
 
-这样做的好处：
+对于“结合课程资料和最近错题情况，分析学生薄弱点”这种问题，系统会同时走 RAG 和 SQL，再把知识点内容和学习数据交给大模型综合分析，输出复习建议。
 
-- 主流程响应更快
-- 统计逻辑和业务写入逻辑解耦
-- 更接近真实业务系统里的消息驱动架构
+### 6.5 亮点五：RocketMQ 异步解耦
 
-### 6.2A 亮点二补充：完成 Redis Stream 到 RocketMQ 的方案演进
+文档索引、学习行为、答题统计都通过 RocketMQ 异步处理。上传资料后不用等待向量化完成，学习行为也不会阻塞主流程，系统更接近真实业务里的消息驱动架构。
 
-这个项目不是只接入一个 MQ，而是先用 Redis Stream 快速验证异步模型，
-再迁移到 RocketMQ。迁移过程中保持业务消息结构和幂等逻辑稳定，仅替换
-消息基础设施和消费确认机制。
+### 6.6 亮点六：幂等和可排障设计
 
-这个点可以体现：
-
-- 能根据项目阶段选择合适的中间件
-- 理解 Redis Stream ACK/pending 与 RocketMQ 重试/DLQ 的差异
-- 能控制迁移范围并保留回滚能力
-
-### 6.3 亮点三：统计数据按天重算，而不是简单累加
-
-这是一个比较容易打动面试官的点。
-
-因为 Redis Stream 消息可能重试，如果消费失败后再次消费，简单 `+1` 容易重复累计。
-
-所以我这里采用“按活动 + 日期重算”的方式更新统计数据：
-
-- 重新统计当天参与人数
-- 重新统计当天奖励数
-- 重新统计当天奖励成功数
-
-这样消息即使重复投递，最终结果仍然是正确的。
-
-### 6.4 亮点四：保留问答记录便于排障
-
-`/agent/query` 返回之后，我会把以下内容保存到 `agent_qa_record`：
-
-- 用户问题
-- 生成的 SQL
-- 查询结果
-- 最终回答
-- 是否成功
-- 错误信息
-
-这个设计的价值是：
-
-- 方便复盘模型生成的 SQL 是否合理
-- 方便排查用户反馈问题
-- 为后续审计或优化 prompt 提供依据
+文档索引用文档状态判断是否已处理，重新索引前删除旧切片；学习行为用 `messageKey` 防重复写入；答题统计按 `answerRecordId` 去重；文档索引失败会记录 `error_message`，Agent 问答也会保存成功失败状态。
 
 ---
 
-## 7. 面试 Q&A
+## 7. 项目中的困难、难点和解决方案
 
-下面这部分你可以直接背，也可以按自己的表达方式说。
+### 7.1 难点一：文档索引耗时不稳定
+
+问题：
+
+文档上传后如果同步做切分、Embedding 和 FAISS 入库，接口会变慢，而且 Python 服务或模型接口波动会影响上传成功率。
+
+解决：
+
+我把上传和索引拆开。上传接口只保存文件和文档元数据，然后发送 RocketMQ 消息。消费者异步调用 Python 建索引，并把处理状态写回数据库。
+
+### 7.2 难点二：模型生成 SQL 有安全风险
+
+问题：
+
+大模型可能生成 `UPDATE`、`DELETE`、多语句、访问密码字段或扫描过大结果集。
+
+解决：
+
+执行前必须经过 SQL Guard。它从语句类型、危险关键字、多语句、敏感字段、白名单表和默认 `LIMIT` 几层做限制，把风险控制在只读查询范围内。
+
+### 7.3 难点三：RAG、SQL、Hybrid 三条链路要统一入口
+
+问题：
+
+前端希望只调一个 `/agent/query`，但后端处理逻辑可能是资料问答、数据库查询或混合分析。
+
+解决：
+
+Python 侧增加问题路由器，根据“统计、数量、正确率”等 SQL 关键词，“什么是、解释、总结、资料”等 RAG 关键词，以及“结合、分析、建议、薄弱点”等 Hybrid 关键词做分流。
+
+### 7.4 难点四：消息重复消费导致重复写入
+
+问题：
+
+RocketMQ 可能重复投递。如果消费者不做幂等，文档切片、学习行为或统计任务可能重复写入。
+
+解决：
+
+不同任务用不同业务键做幂等。文档索引看文档状态并删除旧切片；学习行为使用 `messageKey` 和数据库唯一键；答题统计使用答题记录 ID 做重复消费保护。
+
+### 7.5 难点五：Agent 问题不好排查
+
+问题：
+
+Agent 出错时，可能是路由错、SQL 生成错、检索上下文不准、模型回答不稳定，不像普通 CRUD 接口那样容易定位。
+
+解决：
+
+我把问题、路由类型、生成 SQL、检索上下文、回答、成功状态和错误信息都落到 `agent_qa_record`，方便复盘和优化。
+
+---
+
+## 8. 面试 Q&A
 
 ### Q1：你这个项目主要解决什么问题？
 
 A：
 
-这个项目主要解决的是运营人员不会写 SQL，但又经常要查活动数据的问题。  
-我做的是一个活动运营数据分析系统，运营人员输入自然语言问题，系统自动生成 SQL 查询数据库，再把结果整理成自然语言分析返回。
+主要解决学生课程资料检索和答疑效率低、教师查询学习数据依赖 SQL、课程资料和学习数据割裂的问题。系统通过 RAG 做资料问答，通过 Text-to-SQL 做学习数据查询，通过 Hybrid Agent 做综合分析和复习建议。
 
 ---
 
-### Q2：为什么项目要拆成 Java 后端和 Python Agent 两个服务？
+### Q2：为什么要拆成 Java 后端和 Python Agent 两个服务？
 
 A：
 
-因为两边职责不同。
-
-Java 后端更适合承接标准业务能力，比如：
-
-- 登录
-- 活动管理
-- 参与记录
-- 奖励记录
-- 统计查询
-
-Python 这边更适合做 Agent 和大模型相关能力，比如：
-
-- Text-to-SQL
-- LLM 调用
-- SQL 校验
-- 查询结果总结
-
-拆开以后职责更清晰，也方便后续单独扩展 Python Agent 能力。
+Java 更适合做业务系统、数据库事务、缓存、MQ 和权限；Python 在 LangChain、RAG、Embedding、FAISS 和大模型调用方面生态更成熟。拆开以后职责更清晰，也方便后续独立升级 Agent 能力。
 
 ---
 
-### Q3：`/agent/query` 的完整调用链路是什么？
+### Q3：`/agent/query` 的完整链路是什么？
 
 A：
 
-完整链路是这样的：
-
-1. 前端调用 Java 后端的 `POST /agent/query`
-2. Java 后端接收 `question` 和 `user_id`
-3. Java 后端通过 `RestTemplate` 调用 Python FastAPI 的 `/agent/query`
-4. Python Agent 基于表结构和问题生成 SQL
-5. Python Agent 先做 SQL 安全校验
-6. 校验通过后执行 SQL
-7. Python Agent 再把查询结果总结成自然语言
-8. 返回给 Java 后端
-9. Java 后端把 `question / generated_sql / query_result / answer` 落库到 `agent_qa_record`
-10. 最终返回给前端
+1. 前端调用 Java 后端 `/agent/query`。
+2. Java 封装请求调用 Python FastAPI。
+3. Python 问题路由判断是 SQL、RAG 还是 Hybrid。
+4. SQL 类问题生成 SQL 并通过 SQL Guard 后执行。
+5. RAG 类问题检索课程资料片段后生成回答。
+6. Hybrid 类问题同时执行 RAG 和 SQL，再综合分析。
+7. Python 返回答案。
+8. Java 保存问答记录到 `agent_qa_record` 并返回前端。
 
 ---
 
@@ -344,237 +258,89 @@ A：
 
 A：
 
-我重点做了这几层：
-
-1. 只允许 `SELECT`
-2. 禁止 `INSERT / UPDATE / DELETE / DROP / ALTER / TRUNCATE / CREATE`
-3. 禁止多语句执行
-4. 禁止查询 `sys_user.password`
-5. 没有 `LIMIT` 就自动补 `LIMIT 100`
-6. Python Agent 查询时只暴露必要表，不把敏感表全部开放给模型
-
-这样可以把 Text-to-SQL 的风险控制在只读范围内。
+只允许单条 `SELECT`；禁止危险关键字；禁止多语句；禁止查询 `password` 字段；限制只能访问白名单表；没有 `LIMIT` 自动补 `LIMIT 100`。
 
 ---
 
-### Q5：为什么用 Redis Stream？
+### Q5：为什么文档索引要用 RocketMQ？
 
 A：
 
-主要是为了把业务主流程和统计更新流程解耦。
-
-比如用户参与活动时，核心是先把参与记录写成功。  
-统计数据的刷新不是强实时交易逻辑，可以异步做。
-
-我这里用 Redis Stream 的好处是：
-
-- 实现简单
-- 支持消费者组
-- 支持 pending 消息
-- 支持 ack 机制
-- 比普通 list 更适合做异步事件流
+因为文档索引耗时不稳定，涉及文件读取、切分、Embedding 和向量入库。RocketMQ 可以把索引从上传主流程拆出去，让上传接口快速返回，同时利用重试能力提升任务可靠性。
 
 ---
 
-### Q5A：为什么后来迁移到 RocketMQ？
+### Q6：怎么保证 RocketMQ 重复消费不会出问题？
 
 A：
 
-Redis Stream 适合快速实现，但 RocketMQ 对 Topic、Tag、消费组、失败重试
-和死信队列提供了更完整的消息治理能力。因此我先用 Redis Stream 验证
-业务链路，再把当前默认实现迁移为 RocketMQ。
-
-迁移后参与和奖励任务共用 `agent-task-topic`，通过 `PARTICIPATE` 和
-`REWARD` 两个 Tag 隔离。Redis Stream 源码没有删除，只通过配置关闭，
-便于对比和回滚。
+文档索引用文档状态判断是否已经成功，重复索引前删除旧切片；学习行为用 `messageKey` 防重复写入；答题统计按 `answerRecordId` 做重复消费保护。
 
 ---
 
-### Q5B：RocketMQ 如何处理重复消费？
+### Q7：RAG 如何减少幻觉？
 
 A：
 
-参与统计不是执行 `+1`，而是根据源表重新计算指定活动当天的数据；
-奖励任务通过 `reward_record.send_status` 判断是否已经处理。两种方式都
-能让重复投递得到相同的最终结果。
+不直接让模型自由回答，而是先检索课程资料片段，把片段作为上下文传给模型，并在 Prompt 里约束只能基于上下文回答。如果资料里没有答案，就提示知识库未找到相关信息。
 
 ---
 
-### Q6：参与活动之后，Redis Stream 这块具体怎么处理？
+### Q8：Hybrid Agent 的价值是什么？
 
 A：
 
-流程是：
-
-1. 用户调用 `/activity/participate`
-2. 后端校验活动存在、状态正确、时间合法、用户未重复参与
-3. 写入 `activity_user_record`
-4. 发送消息到 `stream:activity:event`
-5. 消费者读取消息
-6. 重新计算当天该活动的 `participant_count`
-7. 更新 `activity_statistics`
-8. 成功后 `ack`
-9. 失败则只记录日志，不 `ack`
+它能回答单纯 RAG 或 SQL 解决不了的问题。例如分析薄弱点既需要课程资料里的知识点解释，也需要学生错题、答题正确率、学习行为等数据。Hybrid 会把两者结合后给出更有价值的建议。
 
 ---
 
-### Q7：奖励发放为什么也要走异步？
+### Q9：你这个项目有哪些索引设计思路？
 
 A：
 
-因为奖励发放在真实业务里通常不是瞬时完成的。
+我会围绕查询场景建索引，比如：
 
-它可能会涉及：
-
-- 券服务
-- 积分服务
-- 风控服务
-- 库存服务
-
-所以我这里模拟成：
-
-1. 主流程先写 `reward_record`，状态是 `INIT`
-2. 发消息到 `stream:reward:event`
-3. 消费者异步把状态更新为 `SUCCESS`
-4. 同步刷新 `reward_count` 和 `reward_success_count`
-
-这样更贴近真实系统设计。
+- `course.teacher_id`：按教师查询课程。
+- `knowledge_document(course_id, status)`：查某课程资料和处理状态。
+- `knowledge_chunk(document_id)`、`knowledge_chunk(course_id)`：查文档切片和课程切片。
+- `agent_qa_record(user_id, create_time)`：查用户问答历史。
+- `learning_event(user_id, course_id)`、`learning_event(course_id, event_time)`：查学习行为。
+- `answer_record(user_id, course_id)`、`answer_record(question_id)`、`answer_record(correct)`：查错题和正确率。
 
 ---
 
-### Q8：为什么统计更新不用简单加一，而要重算？
+### Q10：这个项目还有什么可以优化？
 
 A：
 
-因为消息系统天然存在重复消费风险。
+我会从五个方向回答：
 
-如果每次消费都直接 `participant_count + 1`，当消息重试时就会重复累计。
-
-所以我这里按“活动 + 日期”重算：
-
-- 再查一次当天真实参与人数
-- 再查一次当天真实奖励数
-- 再查一次当天真实奖励成功数
-
-这样即使消息重复消费，统计结果也不会错。
+1. 补完整 token 鉴权、角色权限和数据权限。
+2. 扩展 PDF、DOCX、PPTX 等文档解析能力。
+3. 把问题路由从关键词升级为规则加模型分类。
+4. 完善 RocketMQ 告警、死信队列巡检和补偿消费。
+5. 增加 RAG 命中率、SQL 成功率、模型调用耗时等监控和评测。
 
 ---
 
-### Q9：你这个项目里有哪些表索引设计思路？
+## 9. 面试时的简洁版自我表达模板
 
-A：
+“我做过一个智能课程学习助手 Agent 平台，整体是 Spring Boot 后端加 Python FastAPI Agent 双服务架构。Spring Boot 负责课程、资料、题目、答题、错题、学习行为、Redis 缓存和 RocketMQ 异步任务；Python 负责 RAG、Text-to-SQL、Hybrid Agent、FAISS 检索和大模型调用。
 
-我会结合查询场景建索引。
+项目里我重点做了课程资料上传后的异步索引、Java 调 Python 联调、Agent 问答记录落库、SQL Guard 安全校验，以及 RocketMQ 消费幂等。难点主要是文档索引耗时、模型 SQL 安全、问题路由和消息重复消费，我分别用异步索引、SQL Guard、统一路由和业务幂等解决。
 
-例如：
-
-- `activity_user_record(activity_id, participate_time)`：适合查某活动某时间段参与情况
-- `activity_user_record(user_id, activity_id)`：适合判重
-- `reward_record(activity_id, send_status)`：适合统计某活动奖励成功/失败情况
-- `activity_statistics(activity_id, stat_date)`：适合查某活动某时间段统计
-- `agent_qa_record(user_id, create_time)`：适合查用户问答历史
+这个项目比较能体现我在 Spring Boot 后端开发、MySQL 表设计、Redis 缓存、RocketMQ 异步处理、RAG、Text-to-SQL 和 Agent 工程化落地方面的能力。”
 
 ---
 
-### Q10：如果面试官问“这个项目还有什么可以优化”？
+## 10. 面试讲述顺序建议
 
-A：
+面试时建议按这个顺序讲：
 
-我会从这几个方向回答：
-
-1. 增加统一登录鉴权拦截器
-2. 给 Redis Stream 增加失败重试和死信处理
-3. 增加只读数据库账号，进一步收紧 Agent 查询权限
-4. 给 Agent 增加问答历史和上下文能力
-5. 增加缓存穿透和缓存过期策略
-6. 增加接口测试和集成测试
-7. 增加监控，比如消息堆积、接口耗时、模型调用失败率
-
----
-
-## 8. 可以主动讲的“设计思考”
-
-这部分在面试里很加分。
-
-### 8.1 为什么后端要保存 `generated_sql`
-
-因为 Agent 项目里，很多问题不是“查不到数据”，而是“模型生成错 SQL”。
-
-把 `generated_sql` 保存下来后：
-
-- 可以复盘模型行为
-- 可以定位 prompt 是否有问题
-- 可以支持后续做 SQL 评估和调优
-
-### 8.2 为什么把统计表单独设计出来
-
-因为运营查询通常是高频的，而且很多查询都是聚合查询。
-
-如果每次都实时扫明细表：
-
-- 性能差
-- SQL 更复杂
-- 高并发时压力更大
-
-所以用 `activity_statistics` 做每日聚合，是典型的数据汇总思路。
-
-### 8.3 为什么要保留 Redis Stream 的 pending 消息
-
-因为如果消费失败直接丢弃，会导致统计不一致。
-
-不 `ack` 的好处是：
-
-- 消息还在 pending list 里
-- 后续可以人工处理或程序重试
-- 能保证最终一致性
-
----
-
-## 9. 项目中的不足与改进方向
-
-这个部分面试时不要回避，反而可以体现你有工程意识。
-
-可以这样说：
-
-### 当前不足
-
-1. 登录后还没有做完整 token 鉴权
-2. RocketMQ 已具备默认重试和死信能力，但还缺少告警、DLQ 巡检和补偿消费
-3. 奖励发放目前是模拟成功路径，没有接真实三方服务
-4. Agent 目前主要是单轮问答
-5. 测试覆盖还不够完整
-
-### 后续优化
-
-1. 增加 Spring 拦截器统一鉴权
-2. 完善 RocketMQ 重试配置、失败告警和 DLQ 补偿，同时补充 Redis Stream pending 自动认领作为旧方案对照
-3. 增加只读数据库账号与数据库最小权限控制
-4. 增加监控告警
-5. 增加单元测试、接口测试、联调测试
-
----
-
-## 10. 面试时的简洁版自我表达模板
-
-如果面试官让你快速介绍项目，可以直接这样说：
-
-“我做过一个活动运营数据分析 Agent 项目，整体是 Java 后端加 Python Agent 双服务架构。  
-Java 后端用 Spring Boot、MyBatis-Plus、MySQL、Redis 和 RocketMQ，负责登录、活动管理、参与记录、奖励记录、统计查询以及调用 Python Agent。
-Python 服务用 FastAPI 和 LangChain，把自然语言转成 SQL，并做 SQL 安全校验和结果总结。  
-消息队列方面，我先用 Redis Stream 跑通异步链路，再迁移到 RocketMQ，通过 Topic 和 Tag 处理参与与奖励任务，并通过重试、死信和业务幂等保证可靠性。
-这个项目里我重点做了后端分层设计、Java 调 Python 联调、问答记录落库，以及消息队列迁移和异步统计更新。”
-
----
-
-## 11. 最后建议
-
-你面试时不要只是背“我做了什么”，最好按照下面这个顺序讲：
-
-1. 业务问题是什么
-2. 架构怎么拆
-3. 你负责哪部分
-4. 有哪些亮点
-5. 遇到什么问题，怎么解决
-6. 后续还能怎么优化
-
-这样比单纯讲接口列表更像真正参与过项目。
+1. 业务问题：学生答疑、教师查数、资料和数据割裂。
+2. 架构拆分：Java 业务后端 + Python Agent 服务。
+3. 核心链路：RAG、Text-to-SQL、Hybrid。
+4. 你的职责：接口、联调、异步任务、记录落库、安全校验。
+5. 项目亮点：RAG、SQL Guard、Hybrid、RocketMQ、幂等。
+6. 遇到的困难：索引耗时、SQL 风险、路由、重复消费。
+7. 后续优化：权限、文档类型、路由、告警、监控评测。

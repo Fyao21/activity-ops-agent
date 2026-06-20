@@ -1,3 +1,5 @@
+// DEPRECATED: Legacy activity-analysis API wrapper retained only for old demos.
+// It is not part of the intelligent course learning assistant core flow.
 import request from './request'
 
 export function createActivity(data) {
